@@ -1,19 +1,21 @@
 import time
-from typing import List
 from typing import Dict
+from typing import List
 from typing import Tuple
-from typing_extensions import TypedDict
 
+from superannotate_core.core import constants
+from superannotate_core.core.conditions import Condition
+from superannotate_core.core.conditions import CONDITION_EQ as EQ
+from superannotate_core.core.entities import BaseItemEntity
 from superannotate_core.core.enums import AnnotationStatus
 from superannotate_core.core.enums import ApprovalStatus
 from superannotate_core.core.enums import UploadStateEnum
-from superannotate_core.core.conditions import Condition
-from superannotate_core.core.conditions import CONDITION_EQ as EQ
-from superannotate_core.core import constants
-from superannotate_core.core.entities import BaseItemEntity
 from superannotate_core.core.exceptions import SAValidationException
 from superannotate_core.infrastructure.repositories.base import BaseHttpRepositry
-from superannotate_core.infrastructure.repositories.limits_repository import LimitsRepository
+from superannotate_core.infrastructure.repositories.limits_repository import (
+    LimitsRepository,
+)
+from typing_extensions import TypedDict
 
 
 class Attachment(TypedDict, total=False):
@@ -66,30 +68,39 @@ class ItemRepository(BaseHttpRepositry):
     URL_SET_ANNOTATION_STATUSES = "image/updateAnnotationStatusBulk"
 
     def _validate_limitations(
-            self, project_id: int,
-            folder_id: int,
-            attachments_count: int,
-            folder_limit=True,
-            project_limit=True,
-            user_limit=True
+        self,
+        project_id: int,
+        folder_id: int,
+        attachments_count: int,
+        folder_limit=True,
+        project_limit=True,
+        user_limit=True,
     ):
-        limits = LimitsRepository(self._session).get_limitations(project_id=project_id, folder_id=folder_id)
-        if folder_limit and attachments_count > limits['folder_limit']['remaining_image_count']:
+        limits = LimitsRepository(self._session).get_limitations(
+            project_id=project_id, folder_id=folder_id
+        )
+        if (
+            folder_limit
+            and attachments_count > limits["folder_limit"]["remaining_image_count"]
+        ):
             raise SAValidationException(constants.ATTACH_FOLDER_LIMIT_ERROR_MESSAGE)
-        elif project_limit and attachments_count > limits['project_limit']['remaining_image_count']:
+        elif (
+            project_limit
+            and attachments_count > limits["project_limit"]["remaining_image_count"]
+        ):
             raise SAValidationException(constants.ATTACH_PROJECT_LIMIT_ERROR_MESSAGE)
         elif user_limit and (
-                'user_limit' in limits
-                and attachments_count > limits['user_limit']['remaining_image_count']
+            "user_limit" in limits
+            and attachments_count > limits["user_limit"]["remaining_image_count"]
         ):
             raise SAValidationException(constants.ATTACH_USER_LIMIT_ERROR_MESSAGE)
 
-    def get_by_id(self, project_id: int, folder_id: int, item_id: int) -> BaseItemEntity:
+    def get_by_id(
+        self, project_id: int, folder_id: int, item_id: int
+    ) -> BaseItemEntity:
         params = {"project_id": project_id, "folder_id": folder_id}
         response = self._session.request(
-            self.URL_GET_BY_ID.format(item_id=item_id),
-            "get",
-            params=params
+            self.URL_GET_BY_ID.format(item_id=item_id), "get", params=params
         )
         response.raise_for_status()
         return self.serialize_entiy(response.json())
@@ -112,10 +123,10 @@ class ItemRepository(BaseHttpRepositry):
         return self.serialize_entiy(response.json())
 
     def list_by_ids(
-            self,
-            project_id: int,
-            folder_id: int,
-            ids: List[int],
+        self,
+        project_id: int,
+        folder_id: int,
+        ids: List[int],
     ):
         items = []
         for i in range(0, len(ids), self.CHUNK_SIZE):
@@ -123,7 +134,7 @@ class ItemRepository(BaseHttpRepositry):
                 self.URL_LIST_BY_IDS,
                 "post",
                 json={
-                    "image_ids": ids[i: i + self.CHUNK_SIZE],  # noqa
+                    "image_ids": ids[i : i + self.CHUNK_SIZE],  # noqa
                 },
                 params={"project_id": project_id, "folder_id": folder_id},
             )
@@ -132,10 +143,10 @@ class ItemRepository(BaseHttpRepositry):
         return self.serialize_entiy(items)
 
     def list_by_names(
-            self,
-            project_id: int,
-            folder_id: int,
-            names: List[str],
+        self,
+        project_id: int,
+        folder_id: int,
+        names: List[str],
     ):
         chunk_size = 200
         items = []
@@ -147,42 +158,43 @@ class ItemRepository(BaseHttpRepositry):
                     "project_id": project_id,
                     "team_id": self._session.team_id,
                     "folder_id": folder_id,
-                    "names": names[i: i + chunk_size],  # noqa
-                }
+                    "names": names[i : i + chunk_size],  # noqa
+                },
             )
             response.raise_for_status()
             items.extend(response.json())
         return self.serialize_entiy(items)
 
     def attach(
-            self,
-            project_id: int,
-            folder_id: int,
-            attachments: List[Attachment],
-            annotation_status: AnnotationStatus,
-            upload_state: UploadStateEnum,
-            meta: Dict[str, AttachmentMeta] = None,
-    ) -> Tuple[List[str], List['str']]:
+        self,
+        project_id: int,
+        folder_id: int,
+        attachments: List[Attachment],
+        annotation_status: AnnotationStatus,
+        upload_state: UploadStateEnum,
+        meta: Dict[str, AttachmentMeta] = None,
+    ) -> Tuple[List[str], List["str"]]:
         attached, duplicated = [], []
         self._validate_limitations(project_id, folder_id, len(attachments))
 
         for i in range(0, len(attachments), self.ATTACH_CHUNK_SIZE):
-            _attachments = attachments[i: i + self.ATTACH_CHUNK_SIZE]
+            _attachments = attachments[i : i + self.ATTACH_CHUNK_SIZE]
             existing_items = self.list_by_names(
                 project_id=project_id,
                 folder_id=folder_id,
-                names=[attachment['name'] for attachment in _attachments],
+                names=[attachment["name"] for attachment in _attachments],
             )
             duplicated.extend([image.name for image in existing_items])
             _data, _metadata = [], {}
             for _attachment in _attachments:
-                if _attachment['name'] not in duplicated:
+                if _attachment["name"] not in duplicated:
                     _data.append(
-                        {"name": _attachment['name'], 'path': _attachment['url']}
+                        {"name": _attachment["name"], "path": _attachment["url"]}
                     )
-                    _metadata[_attachment['name']] = {
-                        'width': None, "height": None,
-                        "_integration_id": _attachment.get('integration_id')
+                    _metadata[_attachment["name"]] = {
+                        "width": None,
+                        "height": None,
+                        "_integration_id": _attachment.get("integration_id"),
                     }
 
             data = {
@@ -197,36 +209,40 @@ class ItemRepository(BaseHttpRepositry):
             # todo define output
             response = self._session.request(self.URL_ATTACH, "post", json=data)
             if response.ok:
-                attached.extend([i['name'] for i in _data])
+                attached.extend([i["name"] for i in _data])
         return attached, duplicated
 
     def bulk_copy_by_names(
-            self,
-            project_id: int,
-            source_folder_id: int,
-            destination_folder_id: int,
-            item_names: List[str] = None,
-            include_annotations: bool = False,
-            include_pin: bool = False,
+        self,
+        project_id: int,
+        source_folder_id: int,
+        destination_folder_id: int,
+        item_names: List[str] = None,
+        include_annotations: bool = False,
+        include_pin: bool = False,
     ) -> List[str]:
         """
         Returns list of skipped item names.
         """
         skipped = set()  # skipped
         if not item_names:
-            existing_item_names = [i.name for i in self.list(
-                Condition('project_id', project_id, EQ)
-                & Condition('folder_id', source_folder_id, EQ)
-            )]
+            existing_item_names = [
+                i.name
+                for i in self.list(
+                    Condition("project_id", project_id, EQ)
+                    & Condition("folder_id", source_folder_id, EQ)
+                )
+            ]
         else:
-            existing_item_names = [i.name for i in self.list_by_names(
-                project_id=project_id,
-                folder_id=source_folder_id,
-                names=item_names
-            )]
+            existing_item_names = [
+                i.name
+                for i in self.list_by_names(
+                    project_id=project_id, folder_id=source_folder_id, names=item_names
+                )
+            ]
             skipped.update(set(item_names) - set(existing_item_names))
         for i in range(0, len(existing_item_names), self.ATTACH_CHUNK_SIZE):
-            _item_names = existing_item_names[i: i + self.ATTACH_CHUNK_SIZE]
+            _item_names = existing_item_names[i : i + self.ATTACH_CHUNK_SIZE]
             existing_items = self.list_by_names(
                 project_id=project_id,
                 folder_id=destination_folder_id,
@@ -238,10 +254,10 @@ class ItemRepository(BaseHttpRepositry):
             project_id=project_id,
             folder_id=destination_folder_id,
             attachments_count=len(items_to_copy),
-            user_limit=False
+            user_limit=False,
         )
         for i in range(0, len(items_to_copy), self.ATTACH_CHUNK_SIZE):
-            _item_names = items_to_copy[i: i + self.ATTACH_CHUNK_SIZE]
+            _item_names = items_to_copy[i : i + self.ATTACH_CHUNK_SIZE]
             response = self._session.request(
                 self.URL_BULK_COPY_BY_NAMES,
                 "post",
@@ -256,7 +272,11 @@ class ItemRepository(BaseHttpRepositry):
                 },
             )
             response.raise_for_status()
-            polling = Polling(project_id=project_id, polling_id=response.json()['poll_id'], trashold=len(_item_names))
+            polling = Polling(
+                project_id=project_id,
+                polling_id=response.json()["poll_id"],
+                trashold=len(_item_names),
+            )
             self.await_copy(polling)
         return list(skipped)
 
@@ -267,11 +287,14 @@ class ItemRepository(BaseHttpRepositry):
             response = self._session.request(
                 self.URL_COPY_PROGRESS,
                 "get",
-                params={"project_id": polling.project_id, "poll_id": polling.polling_id},
+                params={
+                    "project_id": polling.project_id,
+                    "poll_id": polling.polling_id,
+                },
             )
             response.raise_for_status()
             data = response.json()
-            done_count, skipped = data['done'], data['skipped']
+            done_count, skipped = data["done"], data["skipped"]
             polling.update(done_count)
             polling.update(skipped)
             if polling.is_finished():
@@ -280,22 +303,25 @@ class ItemRepository(BaseHttpRepositry):
         return True
 
     def bulk_move_by_names(
-            self,
-            project_id: int,
-            source_folder_id: int,
-            destination_folder_id: int,
-            item_names: List[str] = None,
+        self,
+        project_id: int,
+        source_folder_id: int,
+        destination_folder_id: int,
+        item_names: List[str] = None,
     ) -> List[str]:
         if not item_names:
-            item_names = [i.name for i in self.list(
-                Condition('project_id', project_id, EQ)
-                & Condition('folder_id', source_folder_id, EQ)
-            )]
+            item_names = [
+                i.name
+                for i in self.list(
+                    Condition("project_id", project_id, EQ)
+                    & Condition("folder_id", source_folder_id, EQ)
+                )
+            ]
         self._validate_limitations(
             project_id=project_id,
             folder_id=destination_folder_id,
             attachments_count=len(item_names),
-            user_limit=False
+            user_limit=False,
         )
         skipped = []
         for i in range(0, len(item_names), self.CHUNK_SIZE):
@@ -304,27 +330,30 @@ class ItemRepository(BaseHttpRepositry):
                 "post",
                 params={"project_id": project_id},
                 json={
-                    "image_names": item_names[i: i + self.CHUNK_SIZE],
+                    "image_names": item_names[i : i + self.CHUNK_SIZE],
                     "destination_folder_id": destination_folder_id,
-                    "source_folder_id": source_folder_id
-                }
+                    "source_folder_id": source_folder_id,
+                },
             )
             response.raise_for_status()
-            skipped.extend(response.json()['skipped'])
+            skipped.extend(response.json()["skipped"])
         return skipped
 
     def set_statuses(
-            self,
-            project_id: int,
-            folder_id: int,
-            annotation_status: AnnotationStatus,
-            item_names: List[str] = None,
+        self,
+        project_id: int,
+        folder_id: int,
+        annotation_status: AnnotationStatus,
+        item_names: List[str] = None,
     ):
         if not item_names:
-            item_names = [i.name for i in self.list(
-                Condition('project_id', project_id, EQ)
-                & Condition('folder_id', folder_id, EQ)
-            )]
+            item_names = [
+                i.name
+                for i in self.list(
+                    Condition("project_id", project_id, EQ)
+                    & Condition("folder_id", folder_id, EQ)
+                )
+            ]
         response = self._session.request(
             self.URL_SET_ANNOTATION_STATUSES,
             "put",
@@ -338,24 +367,31 @@ class ItemRepository(BaseHttpRepositry):
         response.raise_for_status()
 
     def set_approval_statuses(
-            self,
-            project_id: int,
-            folder_id: int,
-            approval_status: ApprovalStatus,
-            item_names: List[str] = None,
+        self,
+        project_id: int,
+        folder_id: int,
+        approval_status: ApprovalStatus,
+        item_names: List[str] = None,
     ):
         if not item_names:
-            item_names = [i.name for i in self.list(
-                Condition('project_id', project_id, EQ)
-                & Condition('folder_id', folder_id, EQ)
-            )]
+            item_names = [
+                i.name
+                for i in self.list(
+                    Condition("project_id", project_id, EQ)
+                    & Condition("folder_id", folder_id, EQ)
+                )
+            ]
         response = self._session.request(
             self.URL_SET_APPROVAL_STATUSES,
             "post",
             params={"project_id": project_id, "folder_id": folder_id},
             json={
                 "item_names": item_names,
-                "change_actions": {"APPROVAL_STATUS": approval_status if approval_status.value else None},
+                "change_actions": {
+                    "APPROVAL_STATUS": approval_status
+                    if approval_status.value
+                    else None
+                },
             },
         )
         response.raise_for_status()

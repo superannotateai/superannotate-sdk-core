@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing_extensions import Any
-from typing_extensions import List
-
-from superannotate_core.core.enums import ProjectType
-from superannotate_core.core.enums import ProjectStatus
 from superannotate_core.core.entities.base import AliasHandler
 from superannotate_core.core.entities.base import BaseEntity
 from superannotate_core.core.entities.user import ContributorEntity
+from superannotate_core.core.enums import ProjectStatus
+from superannotate_core.core.enums import ProjectType
+from typing_extensions import Any
+from typing_extensions import List
 
 
 class FolderEntity(BaseEntity):

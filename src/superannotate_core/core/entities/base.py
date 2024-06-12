@@ -1,9 +1,11 @@
-import typing
 import inspect
-from typing import Any
-from typing_extensions import TypedDict, Union
-from enum import Enum
+import typing
 from abc import ABC
+from enum import Enum
+from typing import Any
+
+from typing_extensions import TypedDict
+from typing_extensions import Union
 
 
 class Extra(str, Enum):
@@ -25,7 +27,9 @@ class AliasHandler:
         """
         self._from_to_mapping = from_to_mapping
 
-    def handle(self, data: dict, reverse_mapping: bool = False, raise_exception: bool = False):
+    def handle(
+        self, data: dict, reverse_mapping: bool = False, raise_exception: bool = False
+    ):
         """
         Handle alias mapping for dictionary keys.
 
@@ -40,7 +44,11 @@ class AliasHandler:
         Raises:
             KeyError: If raise_exception is True and a key in from_to_mapping is not found in data.
         """
-        mapping = self._from_to_mapping if not reverse_mapping else {v: k for k, v in self._from_to_mapping.items()}
+        mapping = (
+            self._from_to_mapping
+            if not reverse_mapping
+            else {v: k for k, v in self._from_to_mapping.items()}
+        )
         for from_key, to_key in mapping.items():
             if from_key not in data:
                 if raise_exception:
@@ -52,10 +60,10 @@ class AliasHandler:
 
 class BaseEntity(ABC):
     """
-      require to define schema
-      class Meta:
-          model = Entity
-      """
+    require to define schema
+    class Meta:
+        model = Entity
+    """
 
     class Meta:
         model: TypedDict
@@ -72,7 +80,7 @@ class BaseEntity(ABC):
     @classmethod
     def _from_entity(cls, entity):
         obj = cls.from_json(entity.dict(cls=cls))
-        setattr(obj, 'session', getattr(entity, 'session'))
+        setattr(obj, "session", getattr(entity, "session"))
         return obj
 
     @staticmethod
@@ -93,7 +101,13 @@ class BaseEntity(ABC):
     def session(self, val):
         self._session = val
 
-    def dict(self, exclude: Union[set, list] = None, exclude_none=False, use_enum_values=False, cls=None) -> dict:
+    def dict(
+        self,
+        exclude: Union[set, list] = None,
+        exclude_none=False,
+        use_enum_values=False,
+        cls=None,
+    ) -> dict:
         if not exclude:
             exclude = set()
         else:
@@ -138,7 +152,7 @@ class BaseEntity(ABC):
 
     @classmethod
     def from_json(cls, data: dict):
-        alias_handler = getattr(cls, 'ALIAS_HANDLER', None)
+        alias_handler = getattr(cls, "ALIAS_HANDLER", None)
         if alias_handler:
             data = alias_handler.handle(data, raise_exception=False)
         annotations = typing.get_type_hints(cls)
@@ -158,18 +172,15 @@ class BaseEntity(ABC):
                 raise
             setattr(instnace, field, value)
         meta = getattr(cls, "Meta")
-        exta = getattr(meta, 'extra', None)
+        exta = getattr(meta, "extra", None)
         if exta == Extra.ALLOW:
             for field, value in data.items():
                 setattr(instnace, field, value)
         return instnace
 
     def to_json(self, exclude_none=False, use_enum_values: bool = True):
-        kwargs = {
-            "use_enum_values": use_enum_values,
-            "exclude_none": exclude_none
-        }
-        alias_handler = getattr(self, 'ALIAS_HANDLER', None)
+        kwargs = {"use_enum_values": use_enum_values, "exclude_none": exclude_none}
+        alias_handler = getattr(self, "ALIAS_HANDLER", None)
         if alias_handler:
             return alias_handler.handle(self.dict(**kwargs), reverse_mapping=True)
         else:

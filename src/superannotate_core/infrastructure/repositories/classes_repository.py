@@ -10,7 +10,9 @@ class AnnotationClassesRepository(BaseHttpRepositry):
     URL_LIST = "classes"
     URL_GET = "class/{}"
 
-    def bulk_create(self, project_id: int, classes: List[AnnotationClassEntity]) -> List[AnnotationClassEntity]:
+    def bulk_create(
+        self, project_id: int, classes: List[AnnotationClassEntity]
+    ) -> List[AnnotationClassEntity]:
         params = {
             "project_id": project_id,
         }
@@ -18,8 +20,7 @@ class AnnotationClassesRepository(BaseHttpRepositry):
             self.URL_LIST,
             "post",
             params=params,
-            json={"classes": [i.to_json(exclude_none=True) for i in classes]}
-
+            json={"classes": [i.to_json(exclude_none=True) for i in classes]},
         )
         response.raise_for_status()
         return self.serialize_entiy(response.json())

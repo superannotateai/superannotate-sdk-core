@@ -14,7 +14,6 @@ class SABaseException(Exception):
 
 
 class SAException(Exception):
-
     def __init__(self, message):
         super().__init__(message)
 
@@ -34,4 +33,3 @@ class SAValidationException(SAException):
     """
     Input validation
     """
-

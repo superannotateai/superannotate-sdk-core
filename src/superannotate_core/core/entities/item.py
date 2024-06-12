@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from superannotate_core.core.enums import SegmentationStatus
-from superannotate_core.core.enums import ApprovalStatus
-from superannotate_core.core.enums import AnnotationStatus
 from superannotate_core.core.entities.base import Extra
 from superannotate_core.core.entities.base import TimedEntity
+from superannotate_core.core.enums import AnnotationStatus
+from superannotate_core.core.enums import ApprovalStatus
+from superannotate_core.core.enums import SegmentationStatus
 
 
 class BaseItemEntity(TimedEntity):
@@ -48,4 +48,3 @@ class ClassificationEntity(BaseItemEntity):
 
 class PointCloudEntity(BaseItemEntity):
     ...
-

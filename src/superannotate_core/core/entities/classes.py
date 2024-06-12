@@ -1,8 +1,10 @@
-from typing_extensions import TypedDict, List
 from typing import Any
-from superannotate_core.core.enums import GroupTypeEnum
-from superannotate_core.core.enums import ClassTypeEnum
+
 from superannotate_core.core.entities.base import BaseEntity
+from superannotate_core.core.enums import ClassTypeEnum
+from superannotate_core.core.enums import GroupTypeEnum
+from typing_extensions import List
+from typing_extensions import TypedDict
 
 
 class AttributeSchema(TypedDict, total=False):
