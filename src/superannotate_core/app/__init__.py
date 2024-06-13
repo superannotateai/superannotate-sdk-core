@@ -107,12 +107,12 @@ class Item(BaseItemEntity):
         session,
         project_id: int,
         pk: Union[str, int],
-        folder_id: int = None,
+        folder_id: int,
         include_custom_metadata=False,
     ):
         repo = ItemRepository(session)
         if isinstance(pk, int):
-            item = repo.get_by_id(
+            item: BaseItemEntity = repo.get_by_id(
                 project_id=project_id,
                 folder_id=folder_id,
                 item_id=pk,
@@ -127,7 +127,7 @@ class Item(BaseItemEntity):
                 & Condition("includeCustomMetadata", include_custom_metadata, EQ)
             )
             items = repo.list(condition)
-            item = next((i for i in items if i.name == pk), None)
+            item: BaseItemEntity = next((i for i in items if i.name == pk), None)
         else:
             raise SAInvalidInput("Invalid primery key.")
         return cls._from_entity(item)
@@ -137,7 +137,7 @@ class Item(BaseItemEntity):
         cls,
         session: Session,
         project_id: int,
-        folder_id: int = None,
+        folder_id: int,
         *,
         condition: Condition = None,
         item_ids: List[int] = None,
@@ -165,7 +165,11 @@ class Item(BaseItemEntity):
 
     @classmethod
     async def alist_annotations(
-        cls, session: Session, project_id: int, folder_id: int, items: List["Item"]
+        cls,
+        session: Session,
+        project_id: int,
+        folder_id: int,
+        items: List[Union["BaseItemEntity", "Item", "VideoItem", "ImageItem"]],
     ):
         repo = AnnotationRepository(session)
         sort_response = AnnotationRepository(session=session).sort_annotatoins_by_size(
@@ -311,7 +315,7 @@ class AnnotationClass(AnnotationClassEntity):
         cls,
         session: Session,
         project_id: int,
-        annotation_classes: List["AnnotationClass"],
+        annotation_classes: List["AnnotationClassEntity"],
     ):
         try:
             _annotation_classes = AnnotationClassesRepository(session).bulk_create(
@@ -381,7 +385,7 @@ class Folder(FolderEntity):
         condition: Condition = None,
         item_ids: List[int] = None,
         item_names: List[str] = None,
-    ) -> List[Union[BaseItemEntity, VideoItem, ImageItem]]:
+    ) -> List[Union[BaseItemEntity, Item, VideoItem, ImageItem]]:
         _item = PROJECT_ITEM_MAP[self.project.type]
         return _item.list(
             self.session,
@@ -423,7 +427,7 @@ class Folder(FolderEntity):
     def copy_items_by_name(
         self,
         destination_folder_id: int,
-        items: List[str] = None,
+        items: List[str],
         include_annotations=True,
     ) -> List[str]:
         return Item.copy_items_by_names(
@@ -436,7 +440,7 @@ class Folder(FolderEntity):
         )
 
     def move_items_by_name(
-        self, destination_folder_id: int, items: List[str] = None
+        self, destination_folder_id: int, items: List[str]
     ) -> List[str]:
         return Item.move_items_by_names(
             self.session,
@@ -579,6 +583,7 @@ class Project(ProjectEntity):
 
     def get_item(self, pk: Union[str, int], include_custom_metadata=False):
         _item = PROJECT_ITEM_MAP[self.type]
+        # TODO fix missing folder_id arg
         return _item.get(
             self.session,
             project_id=self.id,
@@ -606,7 +611,7 @@ class Project(ProjectEntity):
         return Folder.update_folder(self.session, folder)
 
     @classmethod
-    def list(cls, session: Session, condition: Condition = None) -> List["Project"]:
+    def list(cls, session: Session, condition: Condition) -> List["Project"]:
         return [cls._from_entity(i) for i in ProjectRepository(session).list(condition)]
 
     @set_releated_attribute("project", many=True)
@@ -644,5 +649,9 @@ class Project(ProjectEntity):
         return response[0]
 
     def create_annotation_classes(self, annotation_classes: List[dict]):
-        annotation_classes = [AnnotationClass.from_json(i) for i in annotation_classes]
-        return AnnotationClass.bulk_create(self.session, self.id, annotation_classes)
+        annotation_classes_prepared = [
+            AnnotationClass.from_json(i) for i in annotation_classes
+        ]
+        return AnnotationClass.bulk_create(
+            self.session, self.id, annotation_classes_prepared
+        )

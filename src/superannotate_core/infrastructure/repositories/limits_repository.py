@@ -1,6 +1,5 @@
-from typing import TypedDict
-
 from superannotate_core.infrastructure.repositories.base import BaseRepositry
+from typing_extensions import TypedDict
 
 
 class Limit(TypedDict):

@@ -2,13 +2,13 @@ import asyncio
 from typing import Callable
 from typing import Iterable
 from typing import List
-from typing import TypedDict
 from urllib.parse import urljoin
 
 import aiohttp
 from superannotate_core.infrastructure.repositories.base import BaseRepositry
 from superannotate_core.infrastructure.repositories.utils import AIOHttpSession
 from superannotate_core.infrastructure.repositories.utils import StreamedAnnotations
+from typing_extensions import TypedDict
 
 
 class SortedAnnotationsResponse(TypedDict):
@@ -26,7 +26,7 @@ class AnnotationRepository(BaseRepositry):
     def sort_annotatoins_by_size(
         self, project_id: int, folder_id: int, item_ids: List[int]
     ) -> SortedAnnotationsResponse:
-        response_data = {"small": [], "large": []}
+        response_data: dict = {"small": [], "large": []}
         response = self._session.request(
             url=urljoin(self._session.assets_provider_url, self.URL_CLASSIFY_ITEM_SIZE),
             method="post",
@@ -39,9 +39,10 @@ class AnnotationRepository(BaseRepositry):
         )
         response.raise_for_status()
         data = response.json()
-        response_data["small"] = [i["data"] for i in data.get("small", {}).values()]
-        response_data["large"] = data.get("large", [])
-        return response_data
+        return SortedAnnotationsResponse(
+            large=[i["data"] for i in data.get("small", {}).values()],
+            small=data.get("large", []),
+        )
 
     async def list_annotations(
         self,

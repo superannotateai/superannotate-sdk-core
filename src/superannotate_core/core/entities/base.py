@@ -3,9 +3,9 @@ import typing
 from abc import ABC
 from enum import Enum
 from typing import Any
+from typing import Union
 
 from typing_extensions import TypedDict
-from typing_extensions import Union
 
 
 class Extra(str, Enum):
@@ -29,7 +29,7 @@ class AliasHandler:
 
     def handle(
         self, data: dict, reverse_mapping: bool = False, raise_exception: bool = False
-    ):
+    ) -> dict:
         """
         Handle alias mapping for dictionary keys.
 
@@ -137,7 +137,7 @@ class BaseEntity(ABC):
                             val[idx] = _val.dict()
                 elif isinstance(val, BaseEntity):
                     val = val.dict()
-                elif isinstance(annotation, typing._GenericAlias):
+                elif isinstance(annotation, typing._GenericAlias):  # TODO check
                     ...
                 elif inspect.isclass(annotation) and issubclass(annotation, Enum):
                     if use_enum_values:

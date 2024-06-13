@@ -78,7 +78,7 @@ class AIOHttpSession(aiohttp.ClientSession):
 
     async def request(self, *args, **kwargs) -> aiohttp.ClientResponse:
         attempts = self.RETRY_LIMIT
-        delay = 0
+        delay: float = 0
         for _ in range(attempts):
             delay += self.BACKOFF_FACTOR
             try:
@@ -115,11 +115,11 @@ class StreamedAnnotations:
         callback: Callable = None,
         map_function: Callable = None,
     ):
-        self._headers = headers
-        self._annotations = []
-        self._callback: Callable = callback
-        self._map_function = map_function
-        self._items_downloaded = 0
+        self._headers: dict = headers
+        self._annotations: list = []
+        self._callback: typing.Optional[Callable] = callback
+        self._map_function: typing.Optional[Callable] = map_function
+        self._items_downloaded: int = 0
 
     async def fetch(
         self,
@@ -129,7 +129,7 @@ class StreamedAnnotations:
         data: dict = None,
         params: dict = None,
     ):
-        kwargs = {"params": params, "json": {}}
+        kwargs: dict = {"params": params, "json": {}}
         if "folder_id" in kwargs["params"]:
             kwargs["json"] = {"folder_id": kwargs["params"].pop("folder_id")}
         if data:
@@ -152,8 +152,11 @@ class StreamedAnnotations:
         params: dict = None,
         verify_ssl=False,
     ):
+        if not params:
+            params = {}
         params = copy.copy(params)
-        params["limit"] = len(list(data))
+        if data:
+            params["limit"] = len(list(data))
         annotations = []
         async with AIOHttpSession(
             headers=self._headers,
@@ -182,6 +185,8 @@ class StreamedAnnotations:
         data: typing.List[int],
         params: dict = None,
     ):
+        if params is None:
+            params = {}
         params = copy.copy(params)
         params["limit"] = len(data)
         async with AIOHttpSession(
