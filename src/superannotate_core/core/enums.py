@@ -1,6 +1,5 @@
-import typing
-from enum import Enum, IntEnum
-from types import DynamicClassAttribute
+from enum import Enum
+from enum import IntEnum
 
 
 class classproperty:  # noqa

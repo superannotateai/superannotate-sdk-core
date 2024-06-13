@@ -1,6 +1,5 @@
-from typing_extensions import TypedDict
-
 from superannotate_core.core.enums import UserRole
+from typing_extensions import TypedDict
 
 
 class ContributorEntity(TypedDict):

@@ -1,5 +1,6 @@
 from abc import ABC
-from typing import Union, List
+from typing import List
+from typing import Union
 
 
 class BaseRepositry(ABC):
@@ -9,7 +10,7 @@ class BaseRepositry(ABC):
 
 class BaseHttpRepositry(BaseRepositry):
     def serialize_entiy(self, data: Union[List[dict], dict]):
-        entitiy_class = getattr(self, 'ENTITY')
+        entitiy_class = getattr(self, "ENTITY")
         if not entitiy_class:
             raise Exception("Repository entity object not specified")
         if isinstance(data, list):
@@ -22,5 +23,3 @@ class BaseHttpRepositry(BaseRepositry):
             response = entitiy_class.from_json(data)
             response.session = self._session
         return response
-
-

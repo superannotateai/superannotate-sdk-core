@@ -16,19 +16,13 @@ class FolderRepository(BaseHttpRepositry):
 
     def get_by_id(self, project_id: int, folder_id: int) -> FolderEntity:
         params = {"folder_id": folder_id, "project_id": project_id}
-        response = self._session.request(
-            self.URL_RETRIEVE,
-            "get",
-            params=params
-        )
+        response = self._session.request(self.URL_RETRIEVE, "get", params=params)
         response.raise_for_status()
         return self.serialize_entiy(response.json())
 
     def get_by_name(self, project_id: int, name: str):
         params = {"project_id": project_id, "name": name}
-        response = self._session.request(
-            self.URL_GET_BY_NAME, "get", params=params
-        )
+        response = self._session.request(self.URL_GET_BY_NAME, "get", params=params)
         response.raise_for_status()
         return self.serialize_entiy(response.json())
 
@@ -55,19 +49,15 @@ class FolderRepository(BaseHttpRepositry):
             self.URL_UPDATE.format(folder_id=entity.id),
             "put",
             json=entity.to_json(),
-            params=params
+            params=params,
         )
         response.raise_for_status()
         return self.serialize_entiy(response.json())
 
     def bulk_delete(self, project_id: int, folder_ids: List[int]) -> None:
-        params = {
-            "project_id": project_id,
-            "folder_ids": folder_ids
-        }
+        params = {"project_id": project_id, "folder_ids": folder_ids}
 
         response = self._session.request(
-            self.URL_BULK_DELETE, "put",
-            json={"folder_ids": folder_ids}, params=params
+            self.URL_BULK_DELETE, "put", json={"folder_ids": folder_ids}, params=params
         )
         response.raise_for_status()

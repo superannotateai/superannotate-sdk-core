@@ -1,6 +1,5 @@
-from typing import TypedDict
-
 from superannotate_core.infrastructure.repositories.base import BaseRepositry
+from typing_extensions import TypedDict
 
 
 class Limit(TypedDict):
@@ -21,7 +20,7 @@ class LimitsRepository(BaseRepositry):
         response = self._session.request(
             self.URL_GET_LIMITS.format(project_id=project_id),
             "get",
-            params={"folder_id": folder_id}
+            params={"folder_id": folder_id},
         )
         response.raise_for_status()
         return response.json()

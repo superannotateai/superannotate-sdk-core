@@ -1,12 +1,12 @@
-import os
-import io
-import copy
-import json
-import typing
 import asyncio
+import copy
+import io
+import json
 import logging
-from typing import Callable
+import os
+import typing
 from threading import Thread
+from typing import Callable
 
 import aiohttp
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class AsyncThread(Thread):
     def __init__(
-            self, group=None, target=None, name=None, args=(), kwargs=None, *, daemon=None
+        self, group=None, target=None, name=None, args=(), kwargs=None, *, daemon=None
     ):
         super().__init__(
             group=group,
@@ -78,7 +78,7 @@ class AIOHttpSession(aiohttp.ClientSession):
 
     async def request(self, *args, **kwargs) -> aiohttp.ClientResponse:
         attempts = self.RETRY_LIMIT
-        delay = 0
+        delay: float = 0
         for _ in range(attempts):
             delay += self.BACKOFF_FACTOR
             try:
@@ -100,7 +100,7 @@ class AIOHttpSession(aiohttp.ClientSession):
             await asyncio.sleep(delay)
 
 
-_seconds = 2 ** 10
+_seconds = 2**10
 TIMEOUT = aiohttp.ClientTimeout(
     total=_seconds, sock_connect=_seconds, sock_read=_seconds
 )
@@ -110,26 +110,26 @@ class StreamedAnnotations:
     DELIMITER = b"\\n;)\\n"
 
     def __init__(
-            self,
-            headers: dict,
-            callback: Callable = None,
-            map_function: Callable = None,
+        self,
+        headers: dict,
+        callback: Callable = None,
+        map_function: Callable = None,
     ):
-        self._headers = headers
-        self._annotations = []
-        self._callback: Callable = callback
-        self._map_function = map_function
-        self._items_downloaded = 0
+        self._headers: dict = headers
+        self._annotations: list = []
+        self._callback: typing.Optional[Callable] = callback
+        self._map_function: typing.Optional[Callable] = map_function
+        self._items_downloaded: int = 0
 
     async def fetch(
-            self,
-            method: str,
-            session: AIOHttpSession,
-            url: str,
-            data: dict = None,
-            params: dict = None,
+        self,
+        method: str,
+        session: AIOHttpSession,
+        url: str,
+        data: dict = None,
+        params: dict = None,
     ):
-        kwargs = {"params": params, "json": {}}
+        kwargs: dict = {"params": params, "json": {}}
         if "folder_id" in kwargs["params"]:
             kwargs["json"] = {"folder_id": kwargs["params"].pop("folder_id")}
         if data:
@@ -145,28 +145,31 @@ class StreamedAnnotations:
             yield json.loads(buffer)
 
     async def list_annotations(
-            self,
-            method: str,
-            url: str,
-            data: typing.Iterable[int] = None,
-            params: dict = None,
-            verify_ssl=False,
+        self,
+        method: str,
+        url: str,
+        data: typing.Iterable[int] = None,
+        params: dict = None,
+        verify_ssl=False,
     ):
+        if not params:
+            params = {}
         params = copy.copy(params)
-        params["limit"] = len(list(data))
+        if data:
+            params["limit"] = len(list(data))
         annotations = []
         async with AIOHttpSession(
-                headers=self._headers,
-                timeout=TIMEOUT,
-                connector=aiohttp.TCPConnector(ssl=verify_ssl, keepalive_timeout=2 ** 32),
-                # raise_for_status=True,
+            headers=self._headers,
+            timeout=TIMEOUT,
+            connector=aiohttp.TCPConnector(ssl=verify_ssl, keepalive_timeout=2**32),
+            # raise_for_status=True,
         ) as session:
             async for annotation in self.fetch(
-                    method,
-                    session,
-                    url,
-                    self._process_data(data),
-                    params=copy.copy(params),
+                method,
+                session,
+                url,
+                self._process_data(data),
+                params=copy.copy(params),
             ):
                 annotations.append(
                     self._callback(annotation) if self._callback else annotation
@@ -175,27 +178,29 @@ class StreamedAnnotations:
         return annotations
 
     async def download_annotations(
-            self,
-            method: str,
-            url: str,
-            download_path,
-            data: typing.List[int],
-            params: dict = None,
+        self,
+        method: str,
+        url: str,
+        download_path,
+        data: typing.List[int],
+        params: dict = None,
     ):
+        if params is None:
+            params = {}
         params = copy.copy(params)
         params["limit"] = len(data)
         async with AIOHttpSession(
-                headers=self._headers,
-                timeout=TIMEOUT,
-                connector=aiohttp.TCPConnector(ssl=False, keepalive_timeout=2 ** 32),
-                # raise_for_status=True,
+            headers=self._headers,
+            timeout=TIMEOUT,
+            connector=aiohttp.TCPConnector(ssl=False, keepalive_timeout=2**32),
+            # raise_for_status=True,
         ) as session:
             async for annotation in self.fetch(
-                    method,
-                    session,
-                    url,
-                    self._process_data(data),
-                    params=params,
+                method,
+                session,
+                url,
+                self._process_data(data),
+                params=params,
             ):
                 self._annotations.append(
                     self._callback(annotation) if self._callback else annotation
