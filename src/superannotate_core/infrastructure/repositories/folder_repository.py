@@ -76,3 +76,12 @@ class FolderRepository(BaseHttpRepositry):
             data={"folder_name": folder_name, "assign_user_ids": users},
         )
         response.raise_for_status()
+
+    def unsaaign(self, project_id: int, folder_id: int):
+        response = self._session.request(
+            self.URL_ASSIGN_FOLDER,
+            "post",
+            params={"project_id": project_id},
+            data={"folder_id": folder_id, "remove_user_ids": ["all"]},
+        )
+        response.raise_for_status()
