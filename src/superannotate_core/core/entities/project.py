@@ -5,16 +5,18 @@ from typing import List
 
 from superannotate_core.core.entities.base import AliasHandler
 from superannotate_core.core.entities.base import BaseEntity
+from superannotate_core.core.entities.base import TimedEntity
 from superannotate_core.core.entities.user import ContributorEntity
+from superannotate_core.core.enums import FolderStatus
 from superannotate_core.core.enums import ProjectStatus
 from superannotate_core.core.enums import ProjectType
 
 
-class FolderEntity(BaseEntity):
+class FolderEntity(TimedEntity):
     id: int
     project_id: int
     name: str
-    status: int
+    status: FolderStatus
     team_id: int
     is_root: bool
     folder_users: List[dict]
