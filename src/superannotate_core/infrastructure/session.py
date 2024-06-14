@@ -1,12 +1,14 @@
-import os
-import time
 import logging
+import os
 import platform
 import threading
+import time
 import urllib.parse
-from typing import List, Dict, Any
-from functools import lru_cache
 from contextlib import contextmanager
+from functools import lru_cache
+from typing import Any
+from typing import Dict
+from typing import List
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -20,12 +22,12 @@ class Session:
     ANNOTATION_VERSION = "V1.00"
 
     def __init__(
-            self,
-            token: str,
-            team_id: int,
-            api_url: str = "https://api.superannotate.com",
-            auth_type: str = "sdk",
-            version: str = "4.4.20"
+        self,
+        token: str,
+        team_id: int,
+        api_url: str = "https://api.superannotate.com",
+        auth_type: str = "sdk",
+        version: str = "4.4.20",
     ):
         self._token = token
         self._team_id = team_id
@@ -37,9 +39,11 @@ class Session:
             "authtype": self._auth_type,
             "Content-Type": "application/json",
             "User-Agent": f"Python-SDK-Version: {version}; Python: {platform.python_version()};"
-                          f"OS: {platform.system()}; Team: {self._team_id}",
+            f"OS: {platform.system()}; Team: {self._team_id}",
         }
-        self.ASSETS_PROVIDER_VERSION = os.environ.get("SA_ASSETS_PROVIDER_VERSION", "v3.01")
+        self.ASSETS_PROVIDER_VERSION = os.environ.get(
+            "SA_ASSETS_PROVIDER_VERSION", "v3.01"
+        )
         self.ASSETS_PROVIDER_URL = os.environ.get(
             "SA_ASSETS_PROVIDER_URL", "https://assets-provider.superannotate.com/api/"
         )
@@ -90,7 +94,6 @@ class Session:
         return safe_api
 
     def _request(self, url: str, method: str, session, retried: int = 0, **kwargs):
-
         with self.safe_api():
             req = requests.Request(
                 method=method,
@@ -117,15 +120,15 @@ class Session:
         return url
 
     def request(
-            self,
-            url,
-            method="get",
-            data=None,
-            json=None,
-            headers=None,
-            params=None,
-            files=None,
-            build_url=True
+        self,
+        url,
+        method="get",
+        data=None,
+        json=None,
+        headers=None,
+        params=None,
+        files=None,
+        build_url=True,
     ) -> requests.Response:
         if build_url:
             url = self._build_url(url)
@@ -133,7 +136,7 @@ class Session:
         if data:
             kwargs["data"] = data
         if json:
-            kwargs['json'] = json
+            kwargs["json"] = json
         if params:
             kwargs["params"].update(params)
         session = self._get_session()
@@ -146,10 +149,10 @@ class Session:
         return response
 
     def paginate(
-            self,
-            url: str,
-            chunk_size: int = 2000,
-            query_params: Dict[str, Any] = None,
+        self,
+        url: str,
+        chunk_size: int = 2000,
+        query_params: Dict[str, Any] = None,
     ) -> List[dict]:
         offset = 0
         total = []
@@ -157,19 +160,17 @@ class Session:
 
         while True:
             _url = f"{url}{splitter}offset={offset}"
-            _response = self.request(
-                _url, method="get", params=query_params
-            )
+            _response = self.request(_url, method="get", params=query_params)
             if _response.ok:
                 response_data = _response.json()
-                payload = response_data['data']
+                payload = response_data["data"]
                 if payload:
                     total.extend(payload)
                 else:
                     break
                 data_len = len(payload)
                 offset += data_len
-                if data_len < chunk_size or response_data['count'] - offset < 0:
+                if data_len < chunk_size or response_data["count"] - offset < 0:
                     break
             else:
                 break

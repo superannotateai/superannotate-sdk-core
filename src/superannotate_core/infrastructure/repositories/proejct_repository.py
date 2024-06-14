@@ -27,9 +27,7 @@ class ProjectRepository(BaseHttpRepositry):
         return self.serialize_entiy(data)
 
     def create(self, entity: ProjectEntity) -> ProjectEntity:
-        response = self._session.request(
-            self.URL_CREATE, "post", data=entity.to_json()
-        )
+        response = self._session.request(self.URL_CREATE, "post", data=entity.to_json())
         response.raise_for_status()
         return self.serialize_entiy(response.json())
 

@@ -69,9 +69,9 @@ class Condition:
         return "".join(items)
 
     def get_as_params_dict(self) -> dict:
-        params = None if isinstance(self, EmptyCondition) else {self._key: self._value}
+        params = {} if isinstance(self, EmptyCondition) else {self._key: self._value}
         for condition in self._condition_set:
-            params.update(condition.pair)  # noqa
+            params.update(condition.pair)
         return params
 
 
