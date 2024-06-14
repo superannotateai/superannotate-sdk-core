@@ -29,6 +29,7 @@ from superannotate_core.core.enums import UploadStateEnum
 from superannotate_core.core.exceptions import SAException
 from superannotate_core.core.exceptions import SAInvalidInput
 from superannotate_core.core.exceptions import SAValidationException
+from superannotate_core.core.utils import chunkify
 from superannotate_core.infrastructure.repositories import AnnotationClassesRepository
 from superannotate_core.infrastructure.repositories import AnnotationRepository
 from superannotate_core.infrastructure.repositories import FolderRepository
@@ -40,7 +41,7 @@ from superannotate_core.infrastructure.repositories.item_repository import (
 )
 from superannotate_core.infrastructure.repositories.utils import run_async
 from superannotate_core.infrastructure.session import Session
-from typing_extensions import Unpack
+
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +61,6 @@ def set_releated_attribute(attr_name, many=False):
         return wrapper
 
     return decorator
-
-
-def chunkify(lst, n):
-    """Divide the list `lst` into chunks of size `n`."""
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
 
 
 class Item(BaseItemEntity):
@@ -144,6 +139,27 @@ class Item(BaseItemEntity):
         item_names: List[str] = None,
     ):
         repo = ItemRepository(session)
+        _items = cls._list_items(
+            repo,
+            project_id,
+            folder_id,
+            item_ids=item_ids,
+            item_names=item_names,
+            condition=condition,
+        )
+        return [cls._from_entity(i) for i in _items]
+
+    @classmethod
+    def _list_items(
+        cls,
+        repo: ItemRepository,
+        project_id: int,
+        folder_id: int,
+        *,
+        item_ids: List[int] = None,
+        item_names: List[str] = None,
+        condition: Condition = None,
+    ):
         if item_ids:
             _items = repo.list_by_ids(
                 project_id=project_id, folder_id=folder_id, ids=item_ids
@@ -161,7 +177,7 @@ class Item(BaseItemEntity):
                 base_condition &= Condition("project_id", project_id, EQ)
                 base_condition &= Condition("folder_id", folder_id, EQ)
             _items = repo.list(base_condition)
-        return [cls._from_entity(i) for i in _items]
+        return _items
 
     @classmethod
     async def alist_annotations(
@@ -292,6 +308,96 @@ class Item(BaseItemEntity):
             item_names=items,
         )
 
+    @classmethod
+    def bulk_delete(
+        cls,
+        session: Session,
+        project_id: int,
+        folder_id: int,
+        *,
+        item_ids: List[int],
+        item_names: List[str] = None,
+    ):
+        repo = ItemRepository(session)
+
+        if not item_ids:
+            item_ids = [
+                i.id
+                for i in cls._list_items(
+                    repo,
+                    project_id,
+                    folder_id,
+                    item_ids=item_ids,
+                    item_names=item_names,
+                )
+            ]
+            if item_ids:
+                repo.bulk_delete(
+                    project_id=project_id, folder_id=folder_id, item_ids=item_ids
+                )
+
+    @classmethod
+    def bulk_assign(
+        cls,
+        session: Session,
+        project_id: int,
+        folder_id: int,
+        user: str,
+        *,
+        condition: Condition = None,
+        item_ids: List[int] = None,
+        item_names: List[str] = None,
+    ) -> int:
+        """
+        Returns successed items count.
+        """
+
+        repo = ItemRepository(session=session)
+        if not item_names and (condition or item_ids):
+            _items = cls._list_items(
+                repo,
+                project_id=project_id,
+                folder_id=folder_id,
+                condition=condition,
+                item_ids=item_ids,
+            )
+            item_names = [i.name for i in _items]
+        count = repo.assign_items(
+            project_id=project_id,
+            folder_id=folder_id,
+            item_names=item_names,
+            user_id=user,
+        )
+        return count
+
+    @classmethod
+    def bulk_unassign(
+        cls,
+        session: Session,
+        project_id: int,
+        folder_id: int,
+        *,
+        condition: Condition = None,
+        item_ids: List[int] = None,
+        item_names: List[str] = None,
+    ) -> int:
+        repo = ItemRepository(session=session)
+        if not item_names and (condition or item_ids):
+            _items = cls._list_items(
+                repo,
+                project_id=project_id,
+                folder_id=folder_id,
+                condition=condition,
+                item_ids=item_ids,
+            )
+            item_names = [i.name for i in _items]
+        count = repo.unassign_items(
+            project_id=project_id,
+            folder_id=folder_id,
+            item_names=item_names,
+        )
+        return count
+
 
 class ImageItem(Item, ImageEntity):
     ...
@@ -396,6 +502,16 @@ class Folder(FolderEntity):
             item_names=item_names,
         )
 
+    def delete_items(self, *, item_ids: List[int] = None, item_names: List[str] = None):
+        _item = PROJECT_ITEM_MAP[self.project.type]
+        _item.bulk_delete(
+            self.session,
+            project_id=self.project_id,
+            folder_id=self.id,
+            item_ids=item_ids,
+            item_names=item_names,
+        )
+
     def get_annotations(
         self,
         *,
@@ -470,6 +586,54 @@ class Folder(FolderEntity):
             folder_id=self.id,
             items=items,
             approval_status=approval_status,
+        )
+
+    def assign(self, users: List[str]):
+        _users = self.project.users
+        verified_users = {i["user_id"] for i in _users}
+        intersection = set(users).intersection(set(verified_users))
+        unverified_contributor = set(users) - verified_users
+        if unverified_contributor:  # todo update error message
+            logger.warning(
+                f"Skipping not a verified {','.join(unverified_contributor)} from assignees."
+            )
+        if intersection:
+            FolderRepository(session=self._session).assign(
+                project_id=self.project_id, folder_name=self.name, users=users
+            )
+
+    def assign_items(
+        self,
+        user: str,
+        *,
+        condition: Condition = None,
+        item_names: List[str],
+        item_ids: List[int],
+    ):
+        Item.bulk_assign(
+            session=self.session,
+            project_id=self.project_id,
+            folder_id=self.id,
+            user=user,
+            condition=condition,
+            item_names=item_names,
+            item_ids=item_ids,
+        )
+
+    def unassign_items(
+        self,
+        *,
+        condition: Condition = None,
+        item_names: List[str] = None,
+        item_ids: List[int] = None,
+    ):
+        Item.bulk_unassign(
+            session=self.session,
+            project_id=self.project_id,
+            folder_id=self.id,
+            condition=condition,
+            item_names=item_names,
+            item_ids=item_ids,
         )
 
     @classmethod
@@ -592,7 +756,7 @@ class Project(ProjectEntity):
         )
 
     @classmethod
-    def create(cls, session, **data: Unpack[ProjectEntity]) -> "Project":
+    def create(cls, session, **data) -> "Project":
         return cls._from_entity(
             ProjectRepository(session).create(ProjectEntity(**data))
         )

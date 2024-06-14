@@ -13,6 +13,7 @@ class FolderRepository(BaseHttpRepositry):
     URL_BULK_DELETE = "image/delete/images"
     URL_RETRIEVE = "folder/getFolderById/{folder_id}"
     URL_UPDATE = "folder/{folder_id}"
+    URL_ASSIGN_FOLDER = "folder/editAssignment"
 
     def get_by_id(self, project_id: int, folder_id: int) -> FolderEntity:
         params = {"folder_id": folder_id, "project_id": project_id}
@@ -59,5 +60,19 @@ class FolderRepository(BaseHttpRepositry):
 
         response = self._session.request(
             self.URL_BULK_DELETE, "put", json={"folder_ids": folder_ids}, params=params
+        )
+        response.raise_for_status()
+
+    def assign(
+        self,
+        project_id: int,
+        folder_name: str,
+        users: List[str],
+    ):
+        response = self._session.request(
+            self.URL_ASSIGN_FOLDER,
+            "post",
+            params={"project_id": project_id},
+            data={"folder_name": folder_name, "assign_user_ids": users},
         )
         response.raise_for_status()

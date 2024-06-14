@@ -11,6 +11,7 @@ from superannotate_core.core.enums import AnnotationStatus
 from superannotate_core.core.enums import ApprovalStatus
 from superannotate_core.core.enums import UploadStateEnum
 from superannotate_core.core.exceptions import SAValidationException
+from superannotate_core.core.utils import chunkify
 from superannotate_core.infrastructure.repositories.base import BaseHttpRepositry
 from superannotate_core.infrastructure.repositories.limits_repository import (
     LimitsRepository,
@@ -53,6 +54,7 @@ class ItemRepository(BaseHttpRepositry):
     ENTITY = BaseItemEntity
     CHUNK_SIZE = 2000
     ATTACH_CHUNK_SIZE = 500
+    ASSIGN_CHUNK_SIZE = ATTACH_CHUNK_SIZE
     BACK_OFF_FACTOR = 0.3
 
     URL_LIST = "items"
@@ -66,6 +68,7 @@ class ItemRepository(BaseHttpRepositry):
     URL_SET_APPROVAL_STATUSES = "/items/bulk/change"
     URL_BULK_COPY_BY_NAMES = "images/copy-image-or-folders"
     URL_SET_ANNOTATION_STATUSES = "image/updateAnnotationStatusBulk"
+    URL_ASSIGN_ITEMS = "images/editAssignment/"
 
     def _validate_limitations(
         self,
@@ -396,11 +399,56 @@ class ItemRepository(BaseHttpRepositry):
         )
         response.raise_for_status()
 
-    def bulk_delete(self, project_id: int, item_ids: List[int]):
+    def bulk_delete(self, project_id: int, folder_id: int, item_ids: List[int]):
         self._session.request(
             self.URL_DELETE_ITEMS,
             "put",
-            params={"project_id": project_id},
+            params={"project_id": project_id, "folder_id": folder_id},
             data={"image_ids": item_ids},
         )
         return True
+
+    def assign_items(
+        self,
+        project_id: int,
+        folder_id: int,
+        user_id: str,
+        item_names: List[str],
+    ) -> int:
+        """
+        Returns successed items count.
+        """
+        _count = 0
+        for chunk in chunkify(item_names, self.ASSIGN_CHUNK_SIZE):
+            response = self._session.request(
+                self.URL_ASSIGN_ITEMS,
+                "put",
+                params={"project_id": project_id},
+                data={
+                    "image_names": chunk,
+                    "assign_user_id": user_id,
+                    "folder_id": folder_id,
+                },
+            )
+            response.raise_for_status()
+            _count += response.json()["successCount"]
+        return _count
+
+    def unassign_items(
+        self,
+        project_id: int,
+        folder_id: int,
+        item_names: List[str],
+    ):
+        for chunk in chunkify(item_names, self.ASSIGN_CHUNK_SIZE):
+            response = self._session.request(
+                self.URL_ASSIGN_ITEMS,
+                "put",
+                params={"project_id": project_id},
+                data={
+                    "image_names": chunk,
+                    "remove_user_ids": ["all"],
+                    "folder_id": folder_id,
+                },
+            )
+            response.raise_for_status()
