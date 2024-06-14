@@ -602,6 +602,12 @@ class Folder(FolderEntity):
                 project_id=self.project_id, folder_name=self.name, users=users
             )
 
+    def unassign(self):
+        FolderRepository(session=self._session).unsaaign(
+            project_id=self.project_id,
+            folder_id=self.id,
+        )
+
     def assign_items(
         self,
         user: str,
