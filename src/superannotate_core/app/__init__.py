@@ -35,13 +35,13 @@ from superannotate_core.infrastructure.repositories import AnnotationRepository
 from superannotate_core.infrastructure.repositories import FolderRepository
 from superannotate_core.infrastructure.repositories import ItemRepository
 from superannotate_core.infrastructure.repositories import ProjectRepository
+from superannotate_core.infrastructure.repositories import SubsetRepository
 from superannotate_core.infrastructure.repositories.item_repository import Attachment
 from superannotate_core.infrastructure.repositories.item_repository import (
     AttachmentMeta,
 )
 from superannotate_core.infrastructure.repositories.utils import run_async
 from superannotate_core.infrastructure.session import Session
-
 
 logger = logging.getLogger(__name__)
 
@@ -132,11 +132,13 @@ class Item(BaseItemEntity):
         cls,
         session: Session,
         project_id: int,
-        folder_id: int,
+        folder_id: Optional[int],
         *,
         condition: Condition = None,
         item_ids: List[int] = None,
         item_names: List[str] = None,
+        query: str = None,
+        subset_id: int = None,
     ):
         repo = ItemRepository(session)
         _items = cls._list_items(
@@ -146,6 +148,8 @@ class Item(BaseItemEntity):
             item_ids=item_ids,
             item_names=item_names,
             condition=condition,
+            query=query,
+            subset_id=subset_id,
         )
         return [cls._from_entity(i) for i in _items]
 
@@ -159,6 +163,8 @@ class Item(BaseItemEntity):
         item_ids: List[int] = None,
         item_names: List[str] = None,
         condition: Condition = None,
+        query: str = None,
+        subset_id: int = None,
     ):
         if item_ids:
             _items = repo.list_by_ids(
@@ -167,6 +173,14 @@ class Item(BaseItemEntity):
         elif item_names:
             _items = repo.list_by_names(
                 project_id=project_id, folder_id=folder_id, names=item_names
+            )
+        elif query:
+            _items = repo.list_by_query(
+                project_id=project_id, folder_id=folder_id, query=query
+            )
+        elif subset_id:
+            _items = repo.list_by_subset(
+                project_id=project_id, folder_id=folder_id, subset_id=subset_id
             )
         else:
             base_condition = Condition("project_id", project_id, EQ) & Condition(
@@ -491,6 +505,8 @@ class Folder(FolderEntity):
         condition: Condition = None,
         item_ids: List[int] = None,
         item_names: List[str] = None,
+        query: str = None,
+        subset_id: int = None,
     ) -> List[Union[BaseItemEntity, Item, VideoItem, ImageItem]]:
         _item = PROJECT_ITEM_MAP[self.project.type]
         return _item.list(
@@ -500,6 +516,8 @@ class Folder(FolderEntity):
             condition=condition,
             item_ids=item_ids,
             item_names=item_names,
+            query=query,
+            subset_id=subset_id,
         )
 
     def delete_items(self, *, item_ids: List[int] = None, item_names: List[str] = None):
@@ -824,4 +842,40 @@ class Project(ProjectEntity):
         ]
         return AnnotationClass.bulk_create(
             self.session, self.id, annotation_classes_prepared
+        )
+
+    def list_subsets(self):
+        return SubsetRepository(session=self.session).list(project_id=self.id)
+
+    def add_items_to_subset(self, subset: Union[int, str], items: List[BaseItemEntity]):
+        """
+        :return: tuple with succeeded, skipped and failed items lists.
+        :rtype: tuple
+        """
+        repo = SubsetRepository(session=self.session)
+        subsets = repo.list(self.id)
+        if isinstance(subset, int):
+            _subset = next((i for i in subsets if i["id"] == subset), None)
+        else:
+            _subset = next((i for i in subsets if i["name"] == subset), None)
+        if not _subset:
+            if isinstance(subset, str):
+                _subset = repo.create_multiple(self.id, [subset])[0]
+            else:
+                raise SAException("Subset not found.")
+        item_ids = [i.id for i in items]
+        return repo.add_items(
+            project_id=self.id, subset_id=_subset["id"], item_ids=item_ids
+        )
+
+    def list_items(
+        self, *, query: str = None, subset_id: int = None
+    ) -> List[Union[BaseItemEntity, Item, VideoItem, ImageItem]]:
+        _item = PROJECT_ITEM_MAP[self.type]
+        return _item.list(
+            self.session,
+            project_id=self.id,
+            folder_id=None,
+            query=query,
+            subset_id=subset_id,
         )

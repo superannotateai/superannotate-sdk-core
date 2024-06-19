@@ -163,7 +163,10 @@ class Session:
             _response = self.request(_url, method="get", params=query_params)
             if _response.ok:
                 response_data = _response.json()
-                payload = response_data["data"]
+                if isinstance(response_data, list):
+                    payload = response_data
+                else:
+                    payload = response_data["data"]
                 if payload:
                     total.extend(payload)
                 else:
