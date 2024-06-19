@@ -1,10 +1,14 @@
 import asyncio
+import json
+from pathlib import Path
 from typing import Callable
 from typing import Iterable
 from typing import List
+from typing import Union
 from urllib.parse import urljoin
 
 import aiohttp
+from superannotate_core.core.entities import BaseItemEntity
 from superannotate_core.infrastructure.repositories.base import BaseRepositry
 from superannotate_core.infrastructure.repositories.utils import AIOHttpSession
 from superannotate_core.infrastructure.repositories.utils import StreamedAnnotations
@@ -23,7 +27,7 @@ class AnnotationRepository(BaseRepositry):
     URL_START_FILE_SYNC = "items/{item_id}/annotations/sync"
     URL_START_FILE_SYNC_STATUS = "items/{item_id}/annotations/sync/status"
 
-    def sort_annotatoins_by_size(
+    def sort_annotations_by_size(
         self, project_id: int, folder_id: int, item_ids: List[int]
     ) -> SortedAnnotationsResponse:
         response_data: dict = {"small": [], "large": []}
@@ -40,8 +44,8 @@ class AnnotationRepository(BaseRepositry):
         response.raise_for_status()
         data = response.json()
         return SortedAnnotationsResponse(
-            large=[i["data"] for i in data.get("small", {}).values()],
-            small=data.get("large", []),
+            small=[i["data"] for i in data.get("small", {}).values()],
+            large=data.get("large", []),
         )
 
     async def list_annotations(
@@ -138,6 +142,7 @@ class AnnotationRepository(BaseRepositry):
         callback: Callable = None,
     ):
         query_params = {
+            "team_id": self._session.team_id,
             "project_id": project_id,
             "folder_id": folder_id,
         }
@@ -154,3 +159,43 @@ class AnnotationRepository(BaseRepositry):
             params=query_params,
             download_path=download_path,
         )
+
+    async def download_large_annotation(
+        self,
+        project_id: int,
+        folder_id: int,
+        item: BaseItemEntity,
+        download_path: Union[str, Path],
+        callback: Callable = None,
+    ):
+        item_id = item.id
+        item_name = item.name
+        query_params = {
+            "team_id": self._session.team_id,
+            "project_id": project_id,
+            "folder_id": folder_id,
+            "version": "V1.00",
+        }
+
+        await self._sync_large_annotation(
+            project_id=project_id, folder_id=folder_id, item_id=item_id
+        )
+
+        url = urljoin(
+            self._session.assets_provider_url,
+            self.URL_DOWNLOAD_LARGE_ANNOTATION.format(item_id=item_id),
+        )
+        async with AIOHttpSession(
+            connector=aiohttp.TCPConnector(ssl=False),
+            headers=self._session.default_headers,
+            raise_for_status=True,
+        ) as session:
+            start_response = await session.request("post", url, params=query_params)
+            res = await start_response.json()
+
+            Path(download_path).mkdir(exist_ok=True, parents=True)
+            dest_path = Path(download_path) / (item_name + ".json")
+            with open(dest_path, "w") as fp:
+                if callback:
+                    res = callback(res)
+                json.dump(res, fp)

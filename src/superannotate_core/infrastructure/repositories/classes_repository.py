@@ -1,3 +1,4 @@
+import json
 from typing import List
 
 from superannotate_core.core.conditions import Condition
@@ -25,12 +26,19 @@ class AnnotationClassesRepository(BaseHttpRepositry):
         response.raise_for_status()
         return self.serialize_entiy(response.json())
 
-    def list(self, condition: Condition = None) -> List[AnnotationClassEntity]:
-        return self._session.paginate(
+    def list(
+        self, project_id: int, condition: Condition = None
+    ) -> List[AnnotationClassEntity]:
+        params = {
+            "project_id": project_id,
+        }
+        classes = self._session.paginate(
             url=f"{self.URL_LIST}?{condition.build_query()}"
             if condition
             else self.URL_LIST,
+            query_params=params,
         )
+        return [self.serialize_entiy(i) for i in classes]
 
     def delete(self, project_id: int, annotation_class_id: int):
         return self._session.request(
@@ -38,3 +46,10 @@ class AnnotationClassesRepository(BaseHttpRepositry):
             "delete",
             params={"project_id": project_id},
         )
+
+    def download(self, project_id: int, path: str, condition: Condition = None):
+        classes = [entity.dict() for entity in self.list(project_id, condition)]
+        classes_json_path = f"{path}/classes.json"
+        with open(classes_json_path, "w", encoding="utf-8") as file:
+            json.dump(classes, file, indent=4)
+        return classes_json_path
