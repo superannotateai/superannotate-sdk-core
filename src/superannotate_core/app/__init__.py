@@ -2,6 +2,8 @@ import asyncio
 import logging
 from functools import wraps
 from operator import itemgetter
+from pathlib import Path
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -46,7 +48,7 @@ from superannotate_core.infrastructure.session import Session
 logger = logging.getLogger(__name__)
 
 
-def set_releated_attribute(attr_name, many=False):
+def set_related_attribute(attr_name, many=False):
     def decorator(method):
         @wraps(method)
         def wrapper(self, *args, **kwargs):
@@ -188,7 +190,7 @@ class Item(BaseItemEntity):
         items: List[Union["BaseItemEntity", "Item", "VideoItem", "ImageItem"]],
     ):
         repo = AnnotationRepository(session)
-        sort_response = AnnotationRepository(session=session).sort_annotatoins_by_size(
+        sort_response = AnnotationRepository(session=session).sort_annotations_by_size(
             project_id=project_id, folder_id=folder_id, item_ids=[i.id for i in items]
         )
         annotations = []
@@ -231,6 +233,82 @@ class Item(BaseItemEntity):
                 )
                 annotations.extend(*small_annotations)
         return annotations
+
+    @classmethod
+    async def _run_download_workers(
+        cls,
+        session: Session,
+        large_items: List[BaseItemEntity],
+        small_items: List[List[dict]],
+        project_id: int,
+        folder_id: int,
+        download_path: Union[str, Path],
+        annotation_repo: AnnotationRepository,
+        callback: Callable = None,
+    ):
+        if large_items:
+            for chunk in chunkify(
+                large_items, max(session.MAX_COROUTINE_COUNT // 2, 2)
+            ):
+                tasks = []
+                for item in chunk:
+                    tasks.append(
+                        annotation_repo.download_large_annotation(
+                            project_id=project_id,
+                            folder_id=folder_id,
+                            item=item,
+                            download_path=download_path,
+                            callback=callback,
+                        )
+                    )
+                await asyncio.gather(*tasks)
+
+        if small_items:
+            for chunks in chunkify(small_items, session.MAX_COROUTINE_COUNT):
+                tasks = []
+                for chunk in chunks:
+                    tasks.append(
+                        annotation_repo.download_small_annotations(
+                            project_id=project_id,
+                            folder_id=folder_id,
+                            item_ids=[i["id"] for i in chunk],
+                            download_path=download_path,
+                            callback=callback,
+                        )
+                    )
+                await asyncio.gather(*tasks)
+
+    @classmethod
+    async def adownload_annotations(
+        cls,
+        session: Session,
+        project_id: int,
+        folder_id: int,
+        items: List[Union["BaseItemEntity", "Item", "VideoItem", "ImageItem"]],
+        download_path: Union[str, Path],
+        callback: Callable = None,
+    ):
+        annotation_repo = AnnotationRepository(session)
+        sort_response = annotation_repo.sort_annotations_by_size(
+            project_id=project_id, folder_id=folder_id, item_ids=[i.id for i in items]
+        )
+        large_item_ids = set(map(itemgetter("id"), sort_response["large"]))
+        large_items: List[BaseItemEntity] = list(
+            filter(lambda item: item.id in large_item_ids, items)
+        )
+        small_items: List[List[dict]] = sort_response["small"]
+        run_async(
+            cls._run_download_workers(
+                session,
+                large_items,
+                small_items,
+                project_id,
+                folder_id,
+                download_path,
+                annotation_repo,
+                callback,
+            )
+        )
 
     @classmethod
     async def aget_large_annotation(
@@ -412,6 +490,7 @@ PROJECT_ITEM_MAP = {
     ProjectType.Pixel: ImageItem,
     ProjectType.Video: VideoItem,
     ProjectType.Tiled: ImageItem,
+    ProjectType.Document: ImageItem,
 }
 
 
@@ -444,14 +523,14 @@ class Folder(FolderEntity):
 
     @property
     def project(self):
-        if not self._project:
-            raise Exception(
-                """
-                To access data through the folder you have to access the folder through the project
-                Project.get_by_id(1).get_folder(1).list_items()
-                """
-            )
-        return self._project
+        if hasattr(self, "_project") and self._project:
+            return self._project
+        raise AttributeError(
+            """
+            To access data through the folder you have to access the folder through the project
+            Project.get_by_id(1).get_folder(1).list_items()
+            """
+        )
 
     @project.setter
     def project(self, v):
@@ -533,12 +612,36 @@ class Folder(FolderEntity):
                 )
             )
         if item_names:
-            #  keeping the same oreder
+            #  keeping the same order
             name_to_index = {name: index for index, name in enumerate(item_names)}
             annotations = list(
                 sorted(annotations, key=lambda x: name_to_index[x["metadata"]["name"]])
             )
         return annotations
+
+    def download_annotations(
+        self,
+        download_path: Union[Path, str],
+        *,
+        condition: Condition = None,
+        item_ids: List[int] = None,
+        item_names: List[str] = None,
+        callback: Callable = None,
+    ):
+        items = self.list_items(
+            condition=condition, item_ids=item_ids, item_names=item_names
+        )
+        if items:
+            run_async(
+                Item.adownload_annotations(
+                    session=self.session,
+                    project_id=self.project_id,
+                    folder_id=self.id,
+                    items=items,
+                    download_path=download_path,
+                    callback=callback,
+                )
+            )
 
     def copy_items_by_name(
         self,
@@ -677,7 +780,7 @@ class Folder(FolderEntity):
                 raise SAInvalidInput("Folder not found.")
             return folder
         else:
-            raise SAInvalidInput("Invalid primery key.")
+            raise SAInvalidInput("Invalid primary key.")
 
     # todo delete
     @classmethod
@@ -784,12 +887,36 @@ class Project(ProjectEntity):
     def list(cls, session: Session, condition: Condition) -> List["Project"]:
         return [cls._from_entity(i) for i in ProjectRepository(session).list(condition)]
 
-    @set_releated_attribute("project", many=True)
-    def list_folders(self, condition: Condition = EmptyCondition()) -> List[Folder]:
+    @set_related_attribute("project", many=True)
+    def list_folders(self, condition: Condition = None) -> List[Folder]:
+        if condition is None:
+            condition = EmptyCondition()
         condition &= Condition("project_id", self.id, EQ)
         return Folder.list(self.session, condition)
 
-    @set_releated_attribute("project")
+    def download_annotations(
+        self,
+        download_path: Union[Path, str],
+        *,
+        condition: Condition = None,
+        item_ids: List[int] = None,
+        item_names: List[str] = None,
+        callback: Callable = None,
+    ):
+        folders = self.list_folders()  # TODO check
+        for folder in folders:
+            current_download_path = download_path
+            if not folder.is_root:
+                current_download_path += f"/{folder.name}"
+            folder.download_annotations(
+                condition=condition,
+                item_ids=item_ids,
+                item_names=item_names,
+                download_path=current_download_path,
+                callback=callback,
+            )
+
+    @set_related_attribute("project")
     def get_folder(self, pk: Union[str, int]):
         if isinstance(pk, int):
             return Folder.get_by_id(self.session, project_id=self.id, folder_id=pk)
