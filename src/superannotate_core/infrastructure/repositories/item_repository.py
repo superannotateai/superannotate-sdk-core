@@ -178,7 +178,7 @@ class ItemRepository(BaseHttpRepositry):
             params={
                 "project_id": project_id,
             },
-            data={
+            json={
                 "query": query,
             },
         )
@@ -187,7 +187,7 @@ class ItemRepository(BaseHttpRepositry):
         if data["isValidQuery"]:
             return data["parsedQuery"]
         else:
-            raise SAValidationException("Invalid query.")
+            raise SAValidationException("Incorrect query.")
 
     def _explore_requset(
         self,

@@ -132,7 +132,7 @@ class Item(BaseItemEntity):
         cls,
         session: Session,
         project_id: int,
-        folder_id: Optional[int],
+        folder_id: int,
         *,
         condition: Condition = None,
         item_ids: List[int] = None,
@@ -499,6 +499,7 @@ class Folder(FolderEntity):
             meta=meta,
         )
 
+    @set_releated_attribute("folder", many=True)
     def list_items(
         self,
         *,
@@ -803,7 +804,9 @@ class Project(ProjectEntity):
         return [cls._from_entity(i) for i in ProjectRepository(session).list(condition)]
 
     @set_releated_attribute("project", many=True)
-    def list_folders(self, condition: Condition = EmptyCondition()) -> List[Folder]:
+    def list_folders(self, condition: Condition = None) -> List[Folder]:
+        if not condition:
+            condition = EmptyCondition()
         condition &= Condition("project_id", self.id, EQ)
         return Folder.list(self.session, condition)
 
@@ -847,7 +850,7 @@ class Project(ProjectEntity):
     def list_subsets(self):
         return SubsetRepository(session=self.session).list(project_id=self.id)
 
-    def add_items_to_subset(self, subset: Union[int, str], items: List[BaseItemEntity]):
+    def add_items_to_subset(self, subset: Union[int, str], item_ids: List[int]):
         """
         :return: tuple with succeeded, skipped and failed items lists.
         :rtype: tuple
@@ -863,7 +866,6 @@ class Project(ProjectEntity):
                 _subset = repo.create_multiple(self.id, [subset])[0]
             else:
                 raise SAException("Subset not found.")
-        item_ids = [i.id for i in items]
         return repo.add_items(
             project_id=self.id, subset_id=_subset["id"], item_ids=item_ids
         )
@@ -872,10 +874,12 @@ class Project(ProjectEntity):
         self, *, query: str = None, subset_id: int = None
     ) -> List[Union[BaseItemEntity, Item, VideoItem, ImageItem]]:
         _item = PROJECT_ITEM_MAP[self.type]
-        return _item.list(
-            self.session,
-            project_id=self.id,
-            folder_id=None,
-            query=query,
-            subset_id=subset_id,
-        )
+        items = []
+        for folder in self.list_folders():
+            items.extend(
+                folder.list_items(
+                    query=query,
+                    subset_id=subset_id,
+                )
+            )
+        return items
