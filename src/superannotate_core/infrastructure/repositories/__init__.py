@@ -19,6 +19,9 @@ from superannotate_core.infrastructure.repositories.proejct_repository import (
 from superannotate_core.infrastructure.repositories.setting_repository import (
     SettingRepository,
 )
+from superannotate_core.infrastructure.repositories.subset_repository import (
+    SubsetRepository,
+)
 
 __all__ = [
     "ProjectRepository",
@@ -28,4 +31,5 @@ __all__ = [
     "ItemRepository",
     "LimitsRepository",
     "AnnotationRepository",
+    "SubsetRepository",
 ]
