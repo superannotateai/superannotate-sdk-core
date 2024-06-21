@@ -213,9 +213,9 @@ class Item(BaseItemEntity):
                             session=session,
                             project_id=project_id,
                             folder_id=folder_id,
-                            item_id=item_id,
+                            item_id=item.id,
                         )
-                        for item_id in chunk
+                        for item in chunk
                     ]
                 )
                 annotations.extend(large_annotations)
@@ -231,7 +231,8 @@ class Item(BaseItemEntity):
                         for item_ids in chunk
                     ]
                 )
-                annotations.extend(*small_annotations)
+                for annotation_chunk in small_annotations:
+                    annotations.extend(annotation_chunk)
         return annotations
 
     @classmethod
@@ -315,7 +316,7 @@ class Item(BaseItemEntity):
         cls, session: Session, project_id: int, folder_id: int, item_id: int
     ):
         repo = AnnotationRepository(session)
-        return repo.get_large_annotation(
+        return await repo.get_large_annotation(
             project_id=project_id, folder_id=folder_id, item_id=item_id
         )
 

@@ -113,11 +113,14 @@ class AnnotationRepository(BaseRepositry):
     async def get_large_annotation(
         self, project_id: int, folder_id: int, item_id: int
     ) -> dict:
-        url = urljoin(self._session.assets_provider_url, self.URL_GET_ANNOTATIONS)
+        url = urljoin(
+            self._session.assets_provider_url,
+            self.URL_DOWNLOAD_LARGE_ANNOTATION.format(item_id=item_id),
+        )
         query_params = {
+            "team_id": self._session.team_id,
             "project_id": project_id,
             "folder_id": folder_id,
-            "annotation_type": "MAIN",
             "version": self._session.ANNOTATION_VERSION,
         }
         await self._sync_large_annotation(
@@ -174,7 +177,7 @@ class AnnotationRepository(BaseRepositry):
             "team_id": self._session.team_id,
             "project_id": project_id,
             "folder_id": folder_id,
-            "version": "V1.00",
+            "version": self._session.ANNOTATION_VERSION,
         }
 
         await self._sync_large_annotation(
