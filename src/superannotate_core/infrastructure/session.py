@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class Session:
     MAX_COROUTINE_COUNT = 8
     ANNOTATION_VERSION = "V1.00"
+    URL_USER = "user/ME"
 
     def __init__(
         self,
@@ -47,6 +48,12 @@ class Session:
         self.ASSETS_PROVIDER_URL = os.environ.get(
             "SA_ASSETS_PROVIDER_URL", "https://assets-provider.superannotate.com/api/"
         )
+
+    @property
+    def user_id(self):
+        url = f"{self._api_url}/{self.URL_USER}"
+        response = self.request(method="get", url=url)
+        return response.json()["id"]
 
     @property
     def assets_provider_url(self):

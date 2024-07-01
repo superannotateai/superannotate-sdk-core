@@ -5,6 +5,7 @@ from operator import itemgetter
 from pathlib import Path
 from typing import Callable
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -32,6 +33,8 @@ from superannotate_core.core.exceptions import SAException
 from superannotate_core.core.exceptions import SAInvalidInput
 from superannotate_core.core.exceptions import SAValidationException
 from superannotate_core.core.utils import chunkify
+from superannotate_core.core.utils import get_dict_size
+from superannotate_core.core.utils import set_annotation_defaults
 from superannotate_core.infrastructure.repositories import AnnotationClassesRepository
 from superannotate_core.infrastructure.repositories import AnnotationRepository
 from superannotate_core.infrastructure.repositories import FolderRepository
@@ -43,7 +46,6 @@ from superannotate_core.infrastructure.repositories.item_repository import (
 )
 from superannotate_core.infrastructure.repositories.utils import run_async
 from superannotate_core.infrastructure.session import Session
-
 
 logger = logging.getLogger(__name__)
 
@@ -311,6 +313,79 @@ class Item(BaseItemEntity):
             )
         )
 
+    @staticmethod
+    async def upload_annotations(
+        session: Session,
+        project_id: int,
+        folder_id: int,
+        project_type: ProjectType,  # TODO set defaults in the assets provider
+        annotations: Iterable[Tuple[int, dict]],
+    ) -> List[int]:
+        small_items_to_upload, large_items_to_upload = [], []
+        failed_ids: List[int] = []
+
+        file_size_threshold = 15 * 1024 * 1024
+        small_items_chunk_size_limit = 3 * file_size_threshold
+        small_items_chunk_size_total = 0
+        large_items_chunk_size_limit = 5 * file_size_threshold
+        large_items_chunk_size_total = 0
+        # TODO run small and large annotations upload in the separate threads
+        for item_id, annotation in annotations:
+            item_size = get_dict_size(annotation)
+            if item_size < file_size_threshold:
+                # TODO skip for now validate, not delete the comment
+                small_items_chunk_size_total += item_size
+                if small_items_chunk_size_total >= small_items_chunk_size_limit:
+                    failed_ids.extend(
+                        await AnnotationRepository(session).upload_small_annotations(
+                            project_id, folder_id, small_items_to_upload
+                        )
+                    )
+                    small_items_to_upload = []
+                    small_items_chunk_size_total = item_size
+
+                small_items_to_upload.append(
+                    {
+                        "item_id": item_id,
+                        "annotation": set_annotation_defaults(
+                            session.user_id, annotation, project_type
+                        ),
+                        "item_size": item_size,
+                    }
+                )
+            else:
+                large_items_chunk_size_total += item_size
+                if large_items_chunk_size_total >= large_items_chunk_size_limit:
+                    failed_ids.extend(
+                        await AnnotationRepository(session).upload_large_annotations(
+                            project_id, folder_id, large_items_to_upload
+                        )
+                    )
+                    large_items_to_upload = []
+                    large_items_chunk_size_total = item_size
+                large_items_to_upload.append(
+                    {
+                        "item_id": item_id,
+                        "annotation": set_annotation_defaults(
+                            session.user_id, annotation, project_type
+                        ),
+                        "item_size": item_size,
+                    }
+                )
+        if small_items_to_upload:
+            failed_ids.extend(
+                await AnnotationRepository(session).upload_small_annotations(
+                    project_id, folder_id, small_items_to_upload
+                )
+            )
+        if large_items_to_upload:
+            failed_ids.extend(
+                await AnnotationRepository(session).upload_large_annotations(
+                    project_id, folder_id, large_items_to_upload
+                )
+            )
+        return failed_ids
+
     @classmethod
     async def aget_large_annotation(
         cls, session: Session, project_id: int, folder_id: int, item_id: int
@@ -537,7 +612,9 @@ class Folder(FolderEntity):
     def project(self, v):
         self._project = v
 
-    def get_item(self, pk: Union[str, int], include_custom_metadata=False):
+    def get_item(
+        self, pk: Union[str, int], include_custom_metadata=False
+    ) -> Union[ImageItem, VideoItem]:
         _item = PROJECT_ITEM_MAP[self.project.type]
         return _item.get(
             self.session,
@@ -643,6 +720,21 @@ class Folder(FolderEntity):
                     callback=callback,
                 )
             )
+
+    def upload_annotations(
+        self,
+        annotations: Iterable[Tuple[int, dict]],
+    ) -> List[int]:
+        failed_ids = run_async(
+            Item.upload_annotations(
+                session=self.session,
+                project_id=self.project_id,
+                folder_id=self.id,
+                annotations=annotations,
+                project_type=self.project.type,
+            )
+        )
+        return failed_ids
 
     def copy_items_by_name(
         self,
