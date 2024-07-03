@@ -4,6 +4,9 @@ from superannotate_core.infrastructure.repositories.annotation_repository import
 from superannotate_core.infrastructure.repositories.classes_repository import (
     AnnotationClassesRepository,
 )
+from superannotate_core.infrastructure.repositories.custom_field_repository import (
+    CustomFieldRepository,
+)
 from superannotate_core.infrastructure.repositories.folder_repository import (
     FolderRepository,
 )
@@ -32,4 +35,5 @@ __all__ = [
     "LimitsRepository",
     "AnnotationRepository",
     "SubsetRepository",
+    "CustomFieldRepository",
 ]

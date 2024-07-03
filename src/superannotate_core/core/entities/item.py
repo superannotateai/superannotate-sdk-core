@@ -23,6 +23,9 @@ class BaseItemEntity(TimedEntity):
     class Meta:
         extra = Extra.ALLOW
 
+    def __hash__(self):
+        return hash(self.id)
+
     @property
     def path(self):
         folder = getattr(self, "folder", None)
