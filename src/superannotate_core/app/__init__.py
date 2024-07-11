@@ -38,6 +38,7 @@ from superannotate_core.core.utils import get_dict_size
 from superannotate_core.core.utils import set_annotation_defaults
 from superannotate_core.infrastructure.repositories import AnnotationClassesRepository
 from superannotate_core.infrastructure.repositories import AnnotationRepository
+from superannotate_core.infrastructure.repositories import CustomFieldRepository
 from superannotate_core.infrastructure.repositories import FolderRepository
 from superannotate_core.infrastructure.repositories import ItemRepository
 from superannotate_core.infrastructure.repositories import ProjectRepository
@@ -146,6 +147,7 @@ class Item(BaseItemEntity):
         item_names: List[str] = None,
         query: str = None,
         subset_id: int = None,
+        include_custom_metadata=False,
     ):
         repo = ItemRepository(session)
         _items = cls._list_items(
@@ -157,6 +159,7 @@ class Item(BaseItemEntity):
             condition=condition,
             query=query,
             subset_id=subset_id,
+            include_custom_metadata=include_custom_metadata,
         )
         return [cls._from_entity(i) for i in _items]
 
@@ -172,14 +175,21 @@ class Item(BaseItemEntity):
         condition: Condition = None,
         query: str = None,
         subset_id: int = None,
+        include_custom_metadata=False,
     ):
         if item_ids:
             _items = repo.list_by_ids(
-                project_id=project_id, folder_id=folder_id, ids=item_ids
+                project_id=project_id,
+                folder_id=folder_id,
+                ids=item_ids,
+                include_custom_metadata=include_custom_metadata,
             )
         elif item_names:
             _items = repo.list_by_names(
-                project_id=project_id, folder_id=folder_id, names=item_names
+                project_id=project_id,
+                folder_id=folder_id,
+                names=item_names,
+                # include_custom_metadata=include_custom_metadata
             )
         elif query:
             _items = repo.list_by_query(
@@ -190,13 +200,13 @@ class Item(BaseItemEntity):
                 project_id=project_id, folder_id=folder_id, subset_id=subset_id
             )
         else:
-            base_condition = Condition("project_id", project_id, EQ) & Condition(
-                "folder_id", folder_id, EQ
+            base_condition = (
+                Condition("project_id", project_id, EQ)
+                & Condition("folder_id", folder_id, EQ)
+                & Condition("includeCustomMetadata", include_custom_metadata, EQ)
             )
             if condition:
-                base_condition = EmptyCondition if not condition else condition
-                base_condition &= Condition("project_id", project_id, EQ)
-                base_condition &= Condition("folder_id", folder_id, EQ)
+                base_condition &= condition
             _items = repo.list(base_condition)
         return _items
 
@@ -673,6 +683,7 @@ class Folder(FolderEntity):
         item_names: List[str] = None,
         query: str = None,
         subset_id: int = None,
+        include_custom_metadata=False,
     ) -> List[Union[BaseItemEntity, Item, VideoItem, ImageItem]]:
         _item = PROJECT_ITEM_MAP[self.project.type]
         return _item.list(
@@ -684,6 +695,7 @@ class Folder(FolderEntity):
             item_names=item_names,
             query=query,
             subset_id=subset_id,
+            include_custom_metadata=include_custom_metadata,
         )
 
     def delete_items(self, *, item_ids: List[int] = None, item_names: List[str] = None):
@@ -952,6 +964,25 @@ class Folder(FolderEntity):
     def update_folder(cls, session: Session, folder: "Folder") -> "Folder":
         return cls._from_entity(FolderRepository(session).update(folder))
 
+    def set_custom_field_values(
+        self, item_fields_map: Dict[Item, dict]
+    ) -> Tuple[List[str], List[str]]:
+        """
+        @return: tuple of succeeded and failed item names
+        """
+        return CustomFieldRepository(session=self.session).upload_fields(
+            project_id=self.project_id,
+            folder_id=self.id,
+            item_name_fields_map={i.name: v for i, v in item_fields_map.items()},
+        )
+
+    def delete_custom_field_values(self, item_fields_map: Dict[Item, List[str]]):
+        return CustomFieldRepository(session=self.session).delete_values(
+            project_id=self.project_id,
+            folder_id=self.id,
+            item_name_fields_map={i.name: v for i, v in item_fields_map.items()},
+        )
+
 
 class Project(ProjectEntity):
     @classmethod
@@ -1109,3 +1140,18 @@ class Project(ProjectEntity):
                 )
             )
         return items
+
+    def get_custom_fields(self) -> dict:
+        return CustomFieldRepository(session=self.session).get_fields(
+            project_id=self.id
+        )
+
+    def create_custom_fields(self, fields: dict):
+        return CustomFieldRepository(session=self.session).create_fields(
+            project_id=self.id, fields=fields
+        )
+
+    def delete_custom_field(self, fields: List[str]):
+        return CustomFieldRepository(session=self.session).delete_fields(
+            project_id=self.id, field_names=fields
+        )

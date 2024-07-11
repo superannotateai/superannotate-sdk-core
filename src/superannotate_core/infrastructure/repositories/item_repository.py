@@ -133,6 +133,7 @@ class ItemRepository(BaseHttpRepositry):
         project_id: int,
         folder_id: int,
         ids: List[int],
+        include_custom_metadata=False,
     ):
         items = []
         for i in range(0, len(ids), self.CHUNK_SIZE):
@@ -142,7 +143,11 @@ class ItemRepository(BaseHttpRepositry):
                 json={
                     "image_ids": ids[i : i + self.CHUNK_SIZE],  # noqa
                 },
-                params={"project_id": project_id, "folder_id": folder_id},
+                params={
+                    "project_id": project_id,
+                    "folder_id": folder_id,
+                    "includeCustomMetadata": include_custom_metadata,
+                },
             )
             response.raise_for_status()
             items.extend(response.json()["images"])
@@ -156,7 +161,7 @@ class ItemRepository(BaseHttpRepositry):
     ):
         chunk_size = 200
         items = []
-        for i in range(0, len(names), chunk_size):
+        for chunk in chunkify(names, chunk_size):
             response = self._session.request(
                 self.URL_LIST_BY_NAMES,
                 "post",
@@ -164,7 +169,7 @@ class ItemRepository(BaseHttpRepositry):
                     "project_id": project_id,
                     "team_id": self._session.team_id,
                     "folder_id": folder_id,
-                    "names": names[i : i + chunk_size],  # noqa
+                    "names": chunk,
                 },
             )
             response.raise_for_status()
