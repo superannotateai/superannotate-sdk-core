@@ -10,7 +10,9 @@ from superannotate_core.core.enums import SegmentationStatus
 class BaseItemEntity(TimedEntity):
     id: int
     name: str
-    path: str  # Item’s path in SuperAnnotate project
+    folder_id: int
+    project_id: int
+    path: str  # Item’s path in SuperAnnotate project  # maybe delete
     url: str  # Publicly available HTTP address
     annotator_email: str
     qa_email: str
@@ -20,6 +22,17 @@ class BaseItemEntity(TimedEntity):
 
     class Meta:
         extra = Extra.ALLOW
+
+    @property
+    def path(self):
+        folder = getattr(self, "folder", None)
+        if folder:
+            project = getattr(folder, "project", None)
+            return f"{project.name}/{folder.name}"
+
+    @path.setter
+    def path(self, v):
+        ...
 
 
 class ImageEntity(BaseItemEntity):

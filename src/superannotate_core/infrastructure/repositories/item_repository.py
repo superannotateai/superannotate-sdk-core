@@ -56,6 +56,7 @@ class ItemRepository(BaseHttpRepositry):
     ATTACH_CHUNK_SIZE = 500
     ASSIGN_CHUNK_SIZE = ATTACH_CHUNK_SIZE
     BACK_OFF_FACTOR = 0.3
+    SAQUL_CHUNK_SIZE = 50
 
     URL_LIST = "items"
     URL_ATTACH = "image/ext-create"
@@ -69,6 +70,8 @@ class ItemRepository(BaseHttpRepositry):
     URL_BULK_COPY_BY_NAMES = "images/copy-image-or-folders"
     URL_SET_ANNOTATION_STATUSES = "image/updateAnnotationStatusBulk"
     URL_ASSIGN_ITEMS = "images/editAssignment/"
+    URL_VALIDATE_SAQUL_QUERY = "/images/parse/query/advanced"
+    URL_SAQUL_QUERY = "/images/search/advanced"
 
     def _validate_limitations(
         self,
@@ -167,6 +170,65 @@ class ItemRepository(BaseHttpRepositry):
             response.raise_for_status()
             items.extend(response.json())
         return self.serialize_entiy(items)
+
+    def _parse_query(self, project_id: int, query: str):
+        resonse = self._session.request(
+            self.URL_VALIDATE_SAQUL_QUERY,
+            "post",
+            params={
+                "project_id": project_id,
+            },
+            json={
+                "query": query,
+            },
+        )
+        resonse.raise_for_status()
+        data = resonse.json()
+        if data["isValidQuery"]:
+            return data["parsedQuery"]
+        else:
+            raise SAValidationException("Incorrect query.")
+
+    def _explore_requset(
+        self,
+        project_id: int,
+        query: str = None,
+        subset_id: int = None,
+        folder_id: int = None,
+    ):
+        params = {"project_id": project_id, "includeFolderNames": True}
+        if not (query or subset_id):
+            raise SAValidationException("Invalid arguemnts provieded.")
+        if subset_id:
+            params["subset_id"] = subset_id
+        if folder_id:
+            params["folder_id"] = folder_id
+        data = {"image_index": 0}
+        if query:
+            data["query"] = query
+        items = []
+        while True:
+            response = self._session.request(
+                self.URL_SAQUL_QUERY, "post", params=params, json=data
+            )
+            response.raise_for_status()
+            response_data = response.json()
+            items.extend(response_data)
+            if len(response_data) < self.SAQUL_CHUNK_SIZE:
+                break
+            data["image_index"] += self.SAQUL_CHUNK_SIZE
+        return self.serialize_entiy(items)
+
+    def list_by_query(self, project_id: int, query: str, folder_id: int = None):
+        parsed_query = self._parse_query(project_id=project_id, query=query)
+        return self._explore_requset(
+            project_id, query=parsed_query, folder_id=folder_id
+        )
+
+    def list_by_subset(self, project_id: int, subset_id: int, folder_id: int = None):
+        return self._explore_requset(
+            project_id, subset_id=subset_id, folder_id=folder_id
+        )
 
     def attach(
         self,
