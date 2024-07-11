@@ -188,7 +188,8 @@ class StreamedAnnotations:
         if params is None:
             params = {}
         params = copy.copy(params)
-        params["limit"] = len(data)
+        if data:
+            params["limit"] = len(data)
         async with AIOHttpSession(
             headers=self._headers,
             timeout=TIMEOUT,

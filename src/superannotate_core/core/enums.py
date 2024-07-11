@@ -61,9 +61,9 @@ class ImageQuality(Enum):
 class ProjectStatus(Enum):
     Undefined = -1
     NotStarted = 1
-    InProgress = "InProgress", 2
-    Completed = "Completed", 3
-    OnHold = "OnHold", 4
+    InProgress = 2
+    Completed = 3
+    OnHold = 4
 
 
 class SegmentationStatus(IntEnum):

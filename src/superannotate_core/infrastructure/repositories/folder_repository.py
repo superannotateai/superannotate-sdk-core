@@ -11,7 +11,7 @@ class FolderRepository(BaseHttpRepositry):
     URL_LIST = "folders"
     URL_GET_BY_NAME = "folder/getFolderByName"
     URL_BULK_DELETE = "image/delete/images"
-    URL_RETRIEVE = "folder/getFolderById/{folder_id}"
+    URL_RETRIEVE = "folder/getFolderById"
     URL_UPDATE = "folder/{folder_id}"
     URL_ASSIGN_FOLDER = "folder/editAssignment"
 
