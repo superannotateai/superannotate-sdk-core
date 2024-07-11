@@ -292,7 +292,9 @@ class AnnotationRepository(BaseRepositry):
         for chunks_group in list_grouped_chunks:
             await asyncio.gather(
                 *[
-                    self._upload_small_annotations(project_id, folder_id, chunk, failed_ids)
+                    self._upload_small_annotations(
+                        project_id, folder_id, chunk, failed_ids
+                    )
                     for chunk in chunks_group
                 ]
             )
@@ -396,7 +398,9 @@ class AnnotationRepository(BaseRepositry):
         for chunk in chunked_large_items_to_upload:
             await asyncio.gather(
                 *[
-                    self._upload_large_annotation(project_id, folder_id, item, failed_ids)
+                    self._upload_large_annotation(
+                        project_id, folder_id, item, failed_ids
+                    )
                     for item in chunk
                 ]
             )

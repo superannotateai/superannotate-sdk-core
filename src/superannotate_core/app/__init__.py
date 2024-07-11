@@ -5,6 +5,7 @@ from operator import itemgetter
 from pathlib import Path
 from typing import Callable
 from typing import Dict
+from typing import Generator
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -324,20 +325,22 @@ class Item(BaseItemEntity):
         small_items_to_upload, large_items_to_upload = [], []
         failed_ids: List[int] = []
 
-        file_size_threshold = 15 * 1024 * 1024
-        small_items_chunk_size_limit = 3 * file_size_threshold
         small_items_chunk_size_total = 0
-        large_items_chunk_size_limit = 5 * file_size_threshold
         large_items_chunk_size_total = 0
+        annotation_repo = AnnotationRepository(session)
+
         # TODO run small and large annotations upload in the separate threads
         for item_id, annotation in annotations:
             item_size = get_dict_size(annotation)
-            if item_size < file_size_threshold:
+            if item_size < constants.ANNOTATION_FILE_SIZE_THRESHOLD:
                 # TODO skip for now validate, not delete the comment
                 small_items_chunk_size_total += item_size
-                if small_items_chunk_size_total >= small_items_chunk_size_limit:
+                if (
+                    small_items_chunk_size_total
+                    >= constants.SMALL_ANNOTATIONS_MEMERY_LIMIT
+                ):
                     failed_ids.extend(
-                        await AnnotationRepository(session).upload_small_annotations(
+                        await annotation_repo.upload_small_annotations(
                             project_id, folder_id, small_items_to_upload
                         )
                     )
@@ -355,9 +358,12 @@ class Item(BaseItemEntity):
                 )
             else:
                 large_items_chunk_size_total += item_size
-                if large_items_chunk_size_total >= large_items_chunk_size_limit:
+                if (
+                    large_items_chunk_size_total
+                    >= constants.LARGE_ANNOTATIONS_MEMERY_LIMIT
+                ):
                     failed_ids.extend(
-                        await AnnotationRepository(session).upload_large_annotations(
+                        await annotation_repo.upload_large_annotations(
                             project_id, folder_id, large_items_to_upload
                         )
                     )
@@ -374,13 +380,13 @@ class Item(BaseItemEntity):
                 )
         if small_items_to_upload:
             failed_ids.extend(
-                await AnnotationRepository(session).upload_small_annotations(
+                await annotation_repo.upload_small_annotations(
                     project_id, folder_id, small_items_to_upload
                 )
             )
         if large_items_to_upload:
             failed_ids.extend(
-                await AnnotationRepository(session).upload_large_annotations(
+                await annotation_repo.upload_large_annotations(
                     project_id, folder_id, large_items_to_upload
                 )
             )
@@ -723,7 +729,7 @@ class Folder(FolderEntity):
 
     def upload_annotations(
         self,
-        annotations: Iterable[Tuple[int, dict]],
+        annotations: Union[Generator, Iterable[Tuple[int, dict]]],
     ) -> List[int]:
         failed_ids = run_async(
             Item.upload_annotations(
