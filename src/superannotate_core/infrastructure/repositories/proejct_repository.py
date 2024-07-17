@@ -2,10 +2,10 @@ from typing import List
 
 from superannotate_core.core.conditions import Condition
 from superannotate_core.core.entities import ProjectEntity
-from superannotate_core.infrastructure.repositories.base import BaseHttpRepositry
+from superannotate_core.infrastructure.repositories.base import BaseHttpRepository
 
 
-class ProjectRepository(BaseHttpRepositry):
+class ProjectRepository(BaseHttpRepository):
     ENTITY = ProjectEntity
     URL_CREATE = "project"
     URL_LIST = "projects"
@@ -17,19 +17,19 @@ class ProjectRepository(BaseHttpRepositry):
             "get",
         )
         response.raise_for_status()
-        return self.serialize_entiy(response.json())
+        return self.serialize_entity(response.json())
 
     def list(self, condition: Condition) -> List[ProjectEntity]:
         data = self._session.paginate(
             url=self.URL_LIST,
             query_params=condition.get_as_params_dict() if condition else {},
         )
-        return self.serialize_entiy(data)
+        return self.serialize_entity(data)
 
     def create(self, entity: ProjectEntity) -> ProjectEntity:
         response = self._session.request(self.URL_CREATE, "post", data=entity.to_json())
         response.raise_for_status()
-        return self.serialize_entiy(response.json())
+        return self.serialize_entity(response.json())
 
     def update(self, entity: ProjectEntity) -> ProjectEntity:
         response = self._session.request(
@@ -38,7 +38,7 @@ class ProjectRepository(BaseHttpRepositry):
             data=entity.to_json(),
         )
         response.raise_for_status()
-        return self.serialize_entiy(response.json())
+        return self.serialize_entity(response.json())
 
     def delete(self, pk: int) -> None:
         return self._session.request(self.URL_RETRIEVE.format(pk), "delete")

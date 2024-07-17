@@ -12,7 +12,7 @@ from superannotate_core.core.enums import ApprovalStatus
 from superannotate_core.core.enums import UploadStateEnum
 from superannotate_core.core.exceptions import SAValidationException
 from superannotate_core.core.utils import chunkify
-from superannotate_core.infrastructure.repositories.base import BaseHttpRepositry
+from superannotate_core.infrastructure.repositories.base import BaseHttpRepository
 from superannotate_core.infrastructure.repositories.limits_repository import (
     LimitsRepository,
 )
@@ -50,7 +50,7 @@ class Polling:
         return self.cursor >= self.trashold
 
 
-class ItemRepository(BaseHttpRepositry):
+class ItemRepository(BaseHttpRepository):
     ENTITY = BaseItemEntity
     CHUNK_SIZE = 2000
     ATTACH_CHUNK_SIZE = 500
@@ -109,7 +109,7 @@ class ItemRepository(BaseHttpRepositry):
             self.URL_GET_BY_ID.format(item_id=item_id), "get", params=params
         )
         response.raise_for_status()
-        return self.serialize_entiy(response.json())
+        return self.serialize_entity(response.json())
 
     def list(self, condition: Condition = None) -> List[BaseItemEntity]:
         data = self._session.paginate(
@@ -117,7 +117,7 @@ class ItemRepository(BaseHttpRepositry):
             chunk_size=self.CHUNK_SIZE,
             query_params=condition.get_as_params_dict() if condition else {},
         )
-        return self.serialize_entiy(data)
+        return self.serialize_entity(data)
 
     def update(self, project_id: int, item: BaseItemEntity):
         response = self._session.request(
@@ -126,7 +126,7 @@ class ItemRepository(BaseHttpRepositry):
             data=item.dict(),
             params={"project_id": project_id},
         )
-        return self.serialize_entiy(response.json())
+        return self.serialize_entity(response.json())
 
     def list_by_ids(
         self,
@@ -151,7 +151,7 @@ class ItemRepository(BaseHttpRepositry):
             )
             response.raise_for_status()
             items.extend(response.json()["images"])
-        return self.serialize_entiy(items)
+        return self.serialize_entity(items)
 
     def list_by_names(
         self,
@@ -174,7 +174,7 @@ class ItemRepository(BaseHttpRepositry):
             )
             response.raise_for_status()
             items.extend(response.json())
-        return self.serialize_entiy(items)
+        return self.serialize_entity(items)
 
     def _parse_query(self, project_id: int, query: str):
         resonse = self._session.request(
@@ -222,7 +222,7 @@ class ItemRepository(BaseHttpRepositry):
             if len(response_data) < self.SAQUL_CHUNK_SIZE:
                 break
             data["image_index"] += self.SAQUL_CHUNK_SIZE
-        return self.serialize_entiy(items)
+        return self.serialize_entity(items)
 
     def list_by_query(self, project_id: int, query: str, folder_id: int = None):
         parsed_query = self._parse_query(project_id=project_id, query=query)

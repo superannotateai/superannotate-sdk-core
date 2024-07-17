@@ -609,12 +609,35 @@ class AnnotationClass(AnnotationClassEntity):
         session: Session,
         project_id: int,
         annotation_classes: List["AnnotationClassEntity"],
-    ):
+    ) -> List["AnnotationClassEntity"]:
         try:
-            _annotation_classes = AnnotationClassesRepository(session).bulk_create(
+            return AnnotationClassesRepository(session).bulk_create(
                 project_id, annotation_classes
             )
-            return [cls._from_entity(i) for i in _annotation_classes]
+        except HTTPError as e:
+            raise SAException(e.response.json()["error"])
+
+    @classmethod
+    def list(
+        cls,
+        session: Session,
+        project_id: int,
+        condition: Condition = None,
+    ) -> List["AnnotationClassEntity"]:
+        try:
+            return AnnotationClassesRepository(session).list(project_id, condition)
+        except HTTPError as e:
+            raise SAException(e.response.json()["error"])
+
+    @classmethod
+    def delete(
+        cls,
+        session: Session,
+        project_id: int,
+        class_id: int,
+    ):
+        try:
+            return AnnotationClassesRepository(session).delete(project_id, class_id)
         except HTTPError as e:
             raise SAException(e.response.json()["error"])
 
@@ -1084,7 +1107,7 @@ class Project(ProjectEntity):
         class_type: ClassTypeEnum,
         color: str,
         attribute_groups: List[AttributeGroupSchema],
-    ):
+    ) -> AnnotationClassEntity:
         payload = {
             "name": name,
             "type": class_type,
@@ -1092,16 +1115,29 @@ class Project(ProjectEntity):
             "attribute_groups": attribute_groups,
         }
         response = AnnotationClass.bulk_create(
-            self.session, self.id, [AnnotationClass.from_json(payload)]
+            self.session, self.id, [AnnotationClassEntity.from_json(payload)]
         )
-        return response[0]
+        if response:
+            return response[0]
 
     def create_annotation_classes(self, annotation_classes: List[dict]):
         annotation_classes_prepared = [
-            AnnotationClass.from_json(i) for i in annotation_classes
+            AnnotationClassEntity.from_json(i) for i in annotation_classes
         ]
         return AnnotationClass.bulk_create(
             self.session, self.id, annotation_classes_prepared
+        )
+
+    def delete_annotation_class(self, class_id: int):
+        return AnnotationClass.delete(
+            session=self.session, project_id=self.id, class_id=class_id
+        )
+
+    def list_annotation_classes(
+        self, condition: Condition = None
+    ) -> List[AnnotationClassEntity]:
+        return AnnotationClass.list(
+            session=self.session, project_id=self.id, condition=condition
         )
 
     def list_subsets(self):

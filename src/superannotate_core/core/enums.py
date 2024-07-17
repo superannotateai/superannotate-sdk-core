@@ -120,7 +120,7 @@ class ClassTypeEnum(IntEnum):
     @classmethod
     def get_value(cls, name):
         for enum in list(cls):
-            if enum.__doc__.lower() == name.lower():
+            if enum.name.lower() == name.lower():
                 return enum.value
         return cls.object.value
 

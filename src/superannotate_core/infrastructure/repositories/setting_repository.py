@@ -2,10 +2,10 @@ from typing import List
 
 from superannotate_core.core.conditions import Condition
 from superannotate_core.core.entities import Setting
-from superannotate_core.infrastructure.repositories.base import BaseHttpRepositry
+from superannotate_core.infrastructure.repositories.base import BaseHttpRepository
 
 
-class SettingRepository(BaseHttpRepositry):
+class SettingRepository(BaseHttpRepository):
     URL_CREATE = "project"
     URL_LIST = "projects"
     URL_RETRIEVE = "project/{project_id}"
