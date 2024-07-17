@@ -30,22 +30,26 @@ class Session:
         auth_type: str = "sdk",
         version: str = "4.4.20",
     ):
-        self._token = token
-        self._team_id = team_id
-        self._api_url = api_url
-        self._auth_type = auth_type
-        self._verify_ssl = os.environ.get("VERIFY_SSL", True)
-        self.default_headers = {
+        self._token: str = token
+        self._team_id: int = team_id
+        self._api_url: str = api_url
+        self._auth_type: str = auth_type
+        self._verify_ssl: bool = not os.environ.get("VERIFY_SSL", "True").lower() in (
+            "false",
+            "f",
+            "0",
+        )
+        self.default_headers: dict = {
             "Authorization": self._token,
             "authtype": self._auth_type,
             "Content-Type": "application/json",
             "User-Agent": f"Python-SDK-Version: {version}; Python: {platform.python_version()};"
             f"OS: {platform.system()}; Team: {self._team_id}",
         }
-        self.ASSETS_PROVIDER_VERSION = os.environ.get(
+        self.ASSETS_PROVIDER_VERSION: str = os.environ.get(
             "SA_ASSETS_PROVIDER_VERSION", "v3.01"
         )
-        self.ASSETS_PROVIDER_URL = os.environ.get(
+        self.ASSETS_PROVIDER_URL: str = os.environ.get(
             "SA_ASSETS_PROVIDER_URL", "https://assets-provider.superannotate.com/api/"
         )
 

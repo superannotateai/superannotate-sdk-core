@@ -23,6 +23,7 @@ class AnnotationClassesRepository(BaseHttpRepository):
 
         created_classes: List[AnnotationClassEntity] = []
         for chunk in chunked_classes:
+            # TODO backend return empty [] if class already exist, discus it
             response = self._session.request(
                 self.URL_LIST,
                 "post",
