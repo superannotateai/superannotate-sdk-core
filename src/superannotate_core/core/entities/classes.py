@@ -1,7 +1,7 @@
 from typing import Any
 from typing import List
 
-from superannotate_core.core.entities.base import BaseEntity
+from superannotate_core.core.entities.base import TimedEntity
 from superannotate_core.core.enums import ClassTypeEnum
 from superannotate_core.core.enums import GroupTypeEnum
 from typing_extensions import TypedDict
@@ -13,6 +13,8 @@ class AttributeSchema(TypedDict, total=False):
     project_id: str
     name: str
     default: Any
+    createdAt: str
+    updatedAt: str
 
 
 class AttributeGroupSchema(TypedDict, total=False):
@@ -24,9 +26,11 @@ class AttributeGroupSchema(TypedDict, total=False):
     isRequired: bool
     attributes: List[AttributeSchema]
     default_value: Any
+    createdAt: str
+    updatedAt: str
 
 
-class AnnotationClassEntity(BaseEntity):
+class AnnotationClassEntity(TimedEntity):
     id: int
     project_id: int
     type: ClassTypeEnum
