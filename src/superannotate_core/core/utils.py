@@ -45,3 +45,20 @@ def get_dict_size(data: dict) -> int:
     file.write(json.dumps(data).encode())
     file.seek(0)
     return file.getbuffer().nbytes
+
+
+def get_clean_priority(priority: float):
+    if len(str(priority)) > 8:
+        priority = float(str(priority)[:8])
+    if priority > 1000000:
+        priority = 1000000
+    if priority < 0:
+        priority = 0
+    if str(float(priority)).split(".")[1:2]:
+        if len(str(float(priority)).split(".")[1]) > 5:
+            priority = float(
+                str(float(priority)).split(".")[0]
+                + "."
+                + str(float(priority)).split(".")[1][:5]
+            )
+    return priority

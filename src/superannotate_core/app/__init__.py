@@ -584,6 +584,17 @@ class Item(BaseItemEntity):
         )
         return count
 
+    @classmethod
+    def upload_priority_scores(
+        cls,
+        session: Session,
+        project_id: int,
+        folder_id: int,
+        scores: List[dict[str, float]],
+    ):
+        repo = ItemRepository(session)
+        return repo.upload_priority_scores(project_id, folder_id, scores)
+
 
 class ImageItem(Item, ImageEntity):
     ...
@@ -1004,6 +1015,14 @@ class Folder(FolderEntity):
             project_id=self.project_id,
             folder_id=self.id,
             item_name_fields_map={i.name: v for i, v in item_fields_map.items()},
+        )
+
+    def upload_priority_scores(self, scores: List[dict[str, float]]):
+        return Item.upload_priority_scores(
+            session=self.session,
+            project_id=self.project_id,
+            folder_id=self.id,
+            scores=scores,
         )
 
 
