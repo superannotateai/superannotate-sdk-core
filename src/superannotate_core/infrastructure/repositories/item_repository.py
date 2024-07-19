@@ -12,6 +12,7 @@ from superannotate_core.core.enums import ApprovalStatus
 from superannotate_core.core.enums import UploadStateEnum
 from superannotate_core.core.exceptions import SAValidationException
 from superannotate_core.core.utils import chunkify
+from superannotate_core.core.utils import get_clean_priority
 from superannotate_core.infrastructure.repositories.base import BaseHttpRepository
 from superannotate_core.infrastructure.repositories.limits_repository import (
     LimitsRepository,
@@ -57,6 +58,7 @@ class ItemRepository(BaseHttpRepository):
     ASSIGN_CHUNK_SIZE = ATTACH_CHUNK_SIZE
     BACK_OFF_FACTOR = 0.3
     SAQUL_CHUNK_SIZE = 50
+    SCORE_CHUNK_SIZE = 100
 
     URL_LIST = "items"
     URL_ATTACH = "image/ext-create"
@@ -72,6 +74,7 @@ class ItemRepository(BaseHttpRepository):
     URL_ASSIGN_ITEMS = "images/editAssignment/"
     URL_VALIDATE_SAQUL_QUERY = "/images/parse/query/advanced"
     URL_SAQUL_QUERY = "/images/search/advanced"
+    URL_UPLOAD_PRIORITY_SCORES = "images/updateEntropy"
 
     def _validate_limitations(
         self,
@@ -519,3 +522,29 @@ class ItemRepository(BaseHttpRepository):
                 },
             )
             response.raise_for_status()
+
+    def upload_priority_scores(
+        self, project_id: int, folder_id: int, scores: List[dict[str, float]]
+    ):
+        scores_to_upload = []
+        for i in scores:
+            scores_to_upload.append(
+                {
+                    "name": i["name"],
+                    "entropy_value": get_clean_priority(i["priority"]),
+                }
+            )
+        chunked_scores_to_upload = chunkify(scores_to_upload, self.SCORE_CHUNK_SIZE)
+        uploaded_score_names: List[str] = []
+        for chunk in chunked_scores_to_upload:
+            response = self._session.request(
+                self.URL_UPLOAD_PRIORITY_SCORES,
+                "post",
+                params={"project_id": project_id, "folder_id": folder_id},
+                json={"image_entropies": chunk},
+            )
+            response.raise_for_status()
+            uploaded = response.json().get("data")
+            if uploaded:
+                uploaded_score_names.extend([i["name"] for i in uploaded])
+        return uploaded_score_names
