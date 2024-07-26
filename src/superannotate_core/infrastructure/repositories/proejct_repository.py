@@ -26,16 +26,18 @@ class ProjectRepository(BaseHttpRepository):
         )
         return self.serialize_entity(data)
 
-    def create(self, entity: ProjectEntity) -> ProjectEntity:
-        response = self._session.request(self.URL_CREATE, "post", data=entity.to_json())
+    def create(self, project: ProjectEntity) -> ProjectEntity:
+        response = self._session.request(
+            self.URL_CREATE, "post", json=project.to_json(exclude_none=True)
+        )
         response.raise_for_status()
         return self.serialize_entity(response.json())
 
-    def update(self, entity: ProjectEntity) -> ProjectEntity:
+    def update(self, project: ProjectEntity) -> ProjectEntity:
         response = self._session.request(
-            self.URL_RETRIEVE.format(entity.id),
+            self.URL_RETRIEVE.format(project_id=project.id),
             "put",
-            data=entity.to_json(),
+            json=project.to_json(exclude_none=True),
         )
         response.raise_for_status()
         return self.serialize_entity(response.json())

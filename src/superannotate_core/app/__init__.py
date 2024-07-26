@@ -1,4 +1,5 @@
 import asyncio
+import decimal
 import logging
 from functools import wraps
 from operator import itemgetter
@@ -17,17 +18,22 @@ from superannotate_core.core import constants
 from superannotate_core.core.conditions import Condition
 from superannotate_core.core.conditions import CONDITION_EQ as EQ
 from superannotate_core.core.conditions import EmptyCondition
+from superannotate_core.core.constants import PROJECT_SETTINGS_VALID_ATTRIBUTES
+from superannotate_core.core.constants import SPECIAL_CHARACTERS_IN_PROJECT_FOLDER_NAMES
 from superannotate_core.core.entities import AnnotationClassEntity
 from superannotate_core.core.entities import AttributeGroupSchema
 from superannotate_core.core.entities import BaseItemEntity
 from superannotate_core.core.entities import FolderEntity
 from superannotate_core.core.entities import ImageEntity
 from superannotate_core.core.entities import ProjectEntity
+from superannotate_core.core.entities import SettingEntity
 from superannotate_core.core.entities import ViedoEntity
+from superannotate_core.core.entities.project import WorkflowEntity
 from superannotate_core.core.enums import AnnotationStatus
 from superannotate_core.core.enums import ApprovalStatus
 from superannotate_core.core.enums import ClassTypeEnum
 from superannotate_core.core.enums import FolderStatus
+from superannotate_core.core.enums import ImageQuality
 from superannotate_core.core.enums import ProjectType
 from superannotate_core.core.enums import UploadStateEnum
 from superannotate_core.core.exceptions import SAException
@@ -48,6 +54,9 @@ from superannotate_core.infrastructure.repositories.item_repository import (
     AttachmentMeta,
 )
 from superannotate_core.infrastructure.repositories.utils import run_async
+from superannotate_core.infrastructure.repositories.workflow_repository import (
+    WorkflowRepository,
+)
 from superannotate_core.infrastructure.session import Session
 
 
@@ -599,6 +608,7 @@ PROJECT_ITEM_MAP = {
     ProjectType.Video: VideoItem,
     ProjectType.Tiled: ImageItem,
     ProjectType.Document: ImageItem,
+    ProjectType.GenAI: ImageItem,
 }
 
 
@@ -1038,10 +1048,99 @@ class Project(ProjectEntity):
             include_custom_metadata=include_custom_metadata,
         )
 
+    # TODO delete after adding validation in backend
+    @staticmethod
+    def _validate_settings(
+        project_type: ProjectType, settings: List[SettingEntity]
+    ) -> None:
+        for setting in settings:
+            if setting.attribute not in PROJECT_SETTINGS_VALID_ATTRIBUTES:
+                settings.remove(setting)
+            if setting.attribute == "ImageQuality" and isinstance(setting.value, str):
+                setting.value = ImageQuality.get_value(setting.value)
+            elif setting.attribute == "FrameRate":
+                if not project_type == ProjectType.Video.value:
+                    raise SAValidationException(
+                        "FrameRate is available only for Video projects"
+                    )
+                try:
+                    setting.value = float(setting.value)
+                    if (
+                        not (0.0001 < setting.value < 120)
+                        or decimal.Decimal(str(setting.value)).as_tuple().exponent < -3
+                    ):
+                        raise SAValidationException(
+                            "The FrameRate value range is between 0.001 - 120"
+                        )
+                    frame_mode = next(
+                        filter(lambda x: x.attribute == "FrameMode", settings),
+                        None,
+                    )
+                    if not frame_mode:
+                        settings.append(
+                            SettingEntity.from_json(
+                                {"attribute": "FrameMode", "value": 1}
+                            )
+                        )
+                except ValueError:
+                    raise SAValidationException("The FrameRate value should be float")
+
+    # TODO delete after adding validation in backend
+    @staticmethod
+    def _validate_project_name(session: Session, project_name: str) -> str:
+        if (
+            len(
+                set(project_name).intersection(
+                    SPECIAL_CHARACTERS_IN_PROJECT_FOLDER_NAMES
+                )
+            )
+            > 0
+        ):
+            project_name = "".join(
+                "_" if char in SPECIAL_CHARACTERS_IN_PROJECT_FOLDER_NAMES else char
+                for char in project_name
+            )
+            logger.warning(
+                "New folder name has special characters. Special characters will be replaced by underscores."
+            )
+        condition = Condition("name", project_name, EQ)
+        projects_list = ProjectRepository(session).list(condition=condition)
+        for project in projects_list:
+            if project.name == project_name:
+                logger.error("There are duplicated names.")
+                raise SAValidationException(
+                    f"Project name {project_name} is not unique. "
+                    f"To use SDK please make project names unique."
+                )
+        return project_name
+
     @classmethod
     def create(cls, session, **data) -> "Project":
+        project_name = data.get("name")
+        if project_name:
+            data["name"] = cls._validate_project_name(session, project_name)
+        settings = data.get("settings")
+        if settings:
+            settings = [SettingEntity.from_json(i) for i in settings]
+            cls._validate_settings(data.get("type"), settings)
+            data["settings"] = settings
         return cls._from_entity(
-            ProjectRepository(session).create(ProjectEntity(**data))
+            ProjectRepository(session).create(ProjectEntity.from_json(data))
+        )
+
+    def update(self, **data) -> "Project":
+        if "id" not in data.keys():
+            data["id"] = self.id
+        project_name = data.get("name")
+        if project_name:
+            data["name"] = self._validate_project_name(self.session, project_name)
+        settings = data.get("settings")
+        if settings:
+            settings = [SettingEntity.from_json(i) for i in settings]
+            self._validate_settings(data.get("type"), settings)
+            data["settings"] = settings
+        return self._from_entity(
+            ProjectRepository(self.session).update(ProjectEntity.from_json(data))
         )
 
     def create_folder(self, name: str) -> Folder:
@@ -1191,3 +1290,73 @@ class Project(ProjectEntity):
         return CustomFieldRepository(session=self.session).delete_fields(
             project_id=self.id, field_names=fields
         )
+
+    def list_workflows(self):
+        workflows = WorkflowRepository(session=self.session).list_workflows(
+            project_id=self.id
+        )
+        annotation_classes = self.list_annotation_classes()
+        annotation_classes_id_name_map = {i.id: i.name for i in annotation_classes}
+        for workflow in workflows:
+            workflow.className = annotation_classes_id_name_map.get(workflow.class_id)
+        return workflows
+
+    def set_workflows(self, workflows: List[dict]) -> None:
+        annotation_classes = self.list_annotation_classes()
+        annotation_classes_map = {}
+        annotations_classes_attributes_map = {}
+        for annotation_class in annotation_classes:
+            annotation_classes_map[annotation_class.name] = annotation_class.id
+            for attribute_group in annotation_class.attribute_groups:
+                for attribute in attribute_group["attributes"]:
+                    annotations_classes_attributes_map[
+                        f"{annotation_class.name}__{attribute_group['name']}__{attribute['name']}"
+                    ] = attribute["id"]
+
+        for workflow in [i for i in workflows if "className" in i]:
+            if workflow.get("id"):
+                del workflow["id"]
+            workflow["class_id"] = annotation_classes_map.get(
+                workflow["className"], None
+            )
+            if not workflow["class_id"]:
+                raise SAException("Annotation class not found.")
+
+        workflows = [WorkflowEntity.from_json(i) for i in workflows]
+        WorkflowRepository(self.session).set_workflows(
+            project_id=self.id, workflows=workflows
+        )
+        existing_workflows = self.list_workflows()
+        existing_workflows_map = {}
+        for workflow in existing_workflows:
+            existing_workflows_map[workflow.step] = workflow.id
+
+        attributes = []
+        for workflow in workflows:
+            annotation_class_name = workflow.className
+            for attribute in workflow.attribute:
+                attribute_name = attribute["attribute"]["name"]
+                attribute_group_name = attribute["attribute"]["attribute_group"]["name"]
+                if not annotations_classes_attributes_map.get(
+                    f"{annotation_class_name}__{attribute_group_name}__{attribute_name}",
+                    None,
+                ):
+                    raise SAException(
+                        f"Attribute group name or attribute name not found {attribute_group_name}."
+                    )
+
+                if not existing_workflows_map.get(workflow.step, None):
+                    raise SAException("Couldn't find step in workflow")
+                attributes.append(
+                    {
+                        "workflow_id": existing_workflows_map[workflow.step],
+                        "attribute_id": annotations_classes_attributes_map[
+                            f"{annotation_class_name}__{attribute_group_name}__{attribute_name}"
+                        ],
+                    }
+                )
+        WorkflowRepository(self.session).set_project_workflow_attributes(
+            project_id=self.id, attributes=attributes
+        )
+        self.workflows = self.list_workflows()
+        return self.workflows

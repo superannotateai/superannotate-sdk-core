@@ -13,6 +13,15 @@ class classproperty:  # noqa
 ApprovalStatus = IntEnum("ApprovalStatus", {"None": 0, "Disapproved": 1, "Approved": 2})
 
 
+class BaseIntEnum(IntEnum):
+    @classmethod
+    def get_value(cls, name):
+        for enum in list(cls):
+            if enum.name.lower() == name.lower():
+                return enum.value
+        return cls.object.value
+
+
 class AnnotationTypes(str, Enum):
     BBOX = "bbox"
     EVENT = "event"
@@ -21,7 +30,7 @@ class AnnotationTypes(str, Enum):
     POLYLINE = "polyline"
 
 
-class ProjectType(IntEnum):
+class ProjectType(BaseIntEnum):
     Vector = 1
     Pixel = 2
     Video = 3
@@ -38,7 +47,7 @@ class ProjectType(IntEnum):
         return self.Vector, self.Pixel.value, self.Tiled.value
 
 
-class UserRole(Enum):
+class UserRole(BaseIntEnum):
     Superadmin = 1
     Admin = 2
     Annotator = 3
@@ -47,18 +56,18 @@ class UserRole(Enum):
     Viewer = 6
 
 
-class UploadStateEnum(IntEnum):
+class UploadStateEnum(BaseIntEnum):
     INITIAL = 1
     BASIC = 2
     EXTERNAL = 3
 
 
-class ImageQuality(Enum):
+class ImageQuality(BaseIntEnum):
     original = 100
     compressed = 60
 
 
-class ProjectStatus(Enum):
+class ProjectStatus(BaseIntEnum):
     Undefined = -1
     NotStarted = 1
     InProgress = 2
@@ -66,7 +75,7 @@ class ProjectStatus(Enum):
     OnHold = 4
 
 
-class SegmentationStatus(IntEnum):
+class SegmentationStatus(BaseIntEnum):
     NotStarted = 1
     InProgress = 2
     Completed = 3
@@ -88,7 +97,7 @@ class GroupTypeEnum(str, Enum):
 #     relationship = 3
 
 
-class FolderStatus(IntEnum):
+class FolderStatus(BaseIntEnum):
     Undefined = -1
     NotStarted = 1
     InProgress = 2
@@ -96,14 +105,14 @@ class FolderStatus(IntEnum):
     OnHold = 4
 
 
-class ExportStatus(Enum):
+class ExportStatus(BaseIntEnum):
     inProgress = 1
     complete = 2
     canceled = 3
     error = 4
 
 
-class AnnotationStatus(IntEnum):
+class AnnotationStatus(BaseIntEnum):
     NotStarted = 1
     InProgress = 2
     QualityCheck = 3
@@ -112,20 +121,13 @@ class AnnotationStatus(IntEnum):
     Skipped = 6
 
 
-class ClassTypeEnum(IntEnum):
+class ClassTypeEnum(BaseIntEnum):
     object = 1
     tag = 2
     relationship = 3
 
-    @classmethod
-    def get_value(cls, name):
-        for enum in list(cls):
-            if enum.name.lower() == name.lower():
-                return enum.value
-        return cls.object.value
 
-
-class IntegrationTypeEnum(Enum):
+class IntegrationTypeEnum(BaseIntEnum):
     aws = 1
     gcp = 2
     azure = 3

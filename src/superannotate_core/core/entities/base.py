@@ -1,3 +1,4 @@
+import copy
 import inspect
 import typing
 from abc import ABC
@@ -152,6 +153,7 @@ class BaseEntity(ABC):
 
     @classmethod
     def from_json(cls, data: dict):
+        data = copy.copy(data)
         alias_handler = getattr(cls, "ALIAS_HANDLER", None)
         if alias_handler:
             data = alias_handler.handle(data, raise_exception=False)

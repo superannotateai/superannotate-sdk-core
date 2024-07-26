@@ -1,7 +1,7 @@
 from typing import List
 
 from superannotate_core.core.conditions import Condition
-from superannotate_core.core.entities import Setting
+from superannotate_core.core.entities import SettingEntity
 from superannotate_core.infrastructure.repositories.base import BaseHttpRepository
 
 
@@ -15,9 +15,9 @@ class SettingRepository(BaseHttpRepository):
 
         self._project_id = project_id
 
-    def list(self, condition: Condition) -> List[Setting]:
+    def list(self, condition: Condition) -> List[SettingEntity]:
         data = self._session.paginate(
             url=self.URL_LIST,
             query_params=condition.get_as_params_dict(),
         )
-        return [Setting.from_json(i) for i in data]
+        return [SettingEntity.from_json(i) for i in data]

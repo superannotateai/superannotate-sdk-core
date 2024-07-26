@@ -1,15 +1,27 @@
 from __future__ import annotations
 
-from typing import Any
 from typing import List
+from typing import Optional
+from typing import Union
 
 from superannotate_core.core.entities.base import AliasHandler
 from superannotate_core.core.entities.base import BaseEntity
 from superannotate_core.core.entities.base import TimedEntity
+from superannotate_core.core.entities.classes import AnnotationClassEntity
 from superannotate_core.core.entities.user import ContributorEntity
 from superannotate_core.core.enums import FolderStatus
 from superannotate_core.core.enums import ProjectStatus
 from superannotate_core.core.enums import ProjectType
+
+
+class WorkflowEntity(BaseEntity):
+    id: Optional[int]
+    project_id: Optional[int]
+    class_id: Optional[int]
+    className: Optional[str]
+    step: Optional[int]
+    tool: Optional[int]
+    attribute: List[dict]
 
 
 class FolderEntity(TimedEntity):
@@ -30,11 +42,11 @@ class FolderEntity(TimedEntity):
         )
 
 
-class Setting(BaseEntity):
+class SettingEntity(BaseEntity):
     id: int
     project_id: int
     attribute: str
-    value: Any
+    value: Union[str, int, float, bool]
 
     def __repr__(self):
         return (
@@ -43,7 +55,7 @@ class Setting(BaseEntity):
         )
 
 
-class ProjectEntity(BaseEntity):
+class ProjectEntity(TimedEntity):
     id: int
     team_id: int
     name: str
@@ -58,6 +70,9 @@ class ProjectEntity(BaseEntity):
     sync_status: int
     upload_state: int
     users: List[ContributorEntity]
+    settings: List[SettingEntity]
+    classes: List[AnnotationClassEntity] = []
+    workflows: Optional[List[WorkflowEntity]] = []
 
     class Meta:
         alias_handler = AliasHandler(
