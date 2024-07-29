@@ -42,5 +42,9 @@ class ProjectRepository(BaseHttpRepository):
         response.raise_for_status()
         return self.serialize_entity(response.json())
 
-    def delete(self, pk: int) -> None:
-        return self._session.request(self.URL_RETRIEVE.format(pk), "delete")
+    def delete(self, project_id: int) -> None:
+        response = self._session.request(
+            self.URL_RETRIEVE.format(project_id=project_id), "delete"
+        )
+        response.raise_for_status()
+        return response.json()

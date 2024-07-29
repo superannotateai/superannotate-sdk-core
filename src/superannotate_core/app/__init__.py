@@ -1152,6 +1152,9 @@ class Project(ProjectEntity):
             ProjectRepository(self.session).update(ProjectEntity.from_json(data))
         )
 
+    def delete(self):
+        return ProjectRepository(self.session).delete(self.id)
+
     def create_folder(self, name: str) -> Folder:
         return Folder.create(self.session, project_id=self.id, name=name)
 
