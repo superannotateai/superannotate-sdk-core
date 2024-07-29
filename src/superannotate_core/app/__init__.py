@@ -48,6 +48,7 @@ from superannotate_core.infrastructure.repositories import CustomFieldRepository
 from superannotate_core.infrastructure.repositories import FolderRepository
 from superannotate_core.infrastructure.repositories import ItemRepository
 from superannotate_core.infrastructure.repositories import ProjectRepository
+from superannotate_core.infrastructure.repositories import SettingRepository
 from superannotate_core.infrastructure.repositories import SubsetRepository
 from superannotate_core.infrastructure.repositories.item_repository import Attachment
 from superannotate_core.infrastructure.repositories.item_repository import (
@@ -1058,6 +1059,14 @@ class Project(ProjectEntity):
                 settings.remove(setting)
             if setting.attribute == "ImageQuality" and isinstance(setting.value, str):
                 setting.value = ImageQuality.get_value(setting.value)
+            elif setting.attribute == "ImageQuality" and project_type in [
+                ProjectType.Video.value,
+                ProjectType.Document.value,
+            ]:
+                raise SAValidationException(
+                    "The function does not support projects containing"
+                    " videos / documents attached with URLs"
+                )
             elif setting.attribute == "FrameRate":
                 if not project_type == ProjectType.Video.value:
                     raise SAValidationException(
@@ -1360,3 +1369,26 @@ class Project(ProjectEntity):
         )
         self.workflows = self.list_workflows()
         return self.workflows
+
+    def list_settings(self) -> List[SettingEntity]:
+        return SettingRepository(session=self.session).list(project_id=self.id)
+
+    def set_settings(self, settings: List[dict]) -> List[SettingEntity]:
+        settings = [SettingEntity.from_json(i) for i in settings]
+        self._validate_settings(project_type=self.type, settings=settings)
+
+        attr_id_mapping = {i.attribute: i.id for i in self.list_settings()}
+        new_settings_to_update = []
+        for new_setting in settings:
+            new_settings_to_update.append(
+                SettingEntity.from_json(
+                    {
+                        "id": attr_id_mapping[new_setting.attribute],
+                        "attribute": new_setting.attribute,
+                        "value": new_setting.value,
+                    }
+                )
+            )
+        return SettingRepository(session=self.session).set_settings(
+            project_id=self.id, settings=new_settings_to_update
+        )

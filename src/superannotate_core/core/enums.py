@@ -21,6 +21,13 @@ class BaseIntEnum(IntEnum):
                 return enum.value
         return cls.object.value
 
+    @classmethod
+    def get_name(cls, value):
+        for enum in list(cls):
+            if enum.value == value:
+                return enum.name
+        return cls.object.name
+
 
 class AnnotationTypes(str, Enum):
     BBOX = "bbox"
