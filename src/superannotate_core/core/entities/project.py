@@ -12,6 +12,7 @@ from superannotate_core.core.entities.user import ContributorEntity
 from superannotate_core.core.enums import FolderStatus
 from superannotate_core.core.enums import ProjectStatus
 from superannotate_core.core.enums import ProjectType
+from superannotate_core.core.enums import UploadStateEnum
 
 
 class WorkflowEntity(BaseEntity):
@@ -68,17 +69,18 @@ class ProjectEntity(TimedEntity):
     status: ProjectStatus
     folder_id: int
     sync_status: int
-    upload_state: int
+    upload_state: UploadStateEnum
     users: List[ContributorEntity]
     settings: List[SettingEntity]
     classes: List[AnnotationClassEntity] = []
     workflows: Optional[List[WorkflowEntity]] = []
+    completed_items_count: int
 
     class Meta:
         alias_handler = AliasHandler(
             {
                 "imageCount": "item_count",
-                "completedImagesCount": "completed_images_count",
+                "completedImagesCount": "completed_items_count",
                 "rootFolderCompletedImagesCount": "root_folder_completed_images_count",
             }
         )

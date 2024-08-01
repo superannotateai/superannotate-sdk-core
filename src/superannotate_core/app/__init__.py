@@ -1,6 +1,7 @@
 import asyncio
 import decimal
 import logging
+from collections import defaultdict
 from functools import wraps
 from operator import itemgetter
 from pathlib import Path
@@ -36,6 +37,7 @@ from superannotate_core.core.enums import FolderStatus
 from superannotate_core.core.enums import ImageQuality
 from superannotate_core.core.enums import ProjectType
 from superannotate_core.core.enums import UploadStateEnum
+from superannotate_core.core.enums import UserRole
 from superannotate_core.core.exceptions import SAException
 from superannotate_core.core.exceptions import SAInvalidInput
 from superannotate_core.core.exceptions import SAValidationException
@@ -1395,3 +1397,49 @@ class Project(ProjectEntity):
         return SettingRepository(session=self.session).set_settings(
             project_id=self.id, settings=new_settings_to_update
         )
+
+    def add_contributors(self, contributors: List[dict]):
+        team_data = self.session.get_team()
+        team_users = set()
+        project_users = set()
+        if self.users:
+            project_users = {user["user_id"] for user in self.users}
+        for user in team_data["users"]:
+            if user["user_role"] > UserRole.Admin.value:
+                team_users.add(user["email"])
+        # collecting pending team users which is not admin
+        for user in team_data["pending_invitations"]:
+            if user["user_role"] > UserRole.Admin.value:
+                team_users.add(user["email"])
+        role_email_map = defaultdict(list)
+        to_skip = []
+        to_add = []
+        for contributor in contributors:
+            role_email_map[contributor["user_role"]].append(contributor["user_id"])
+        for role, emails in role_email_map.items():
+            _to_add = list(team_users.intersection(emails) - project_users)
+            to_add.extend(_to_add)
+            to_skip.extend(list(set(emails).difference(_to_add)))
+            if _to_add:
+                response = ProjectRepository(session=self.session).share(
+                    project_id=self.id,
+                    users=[
+                        dict(
+                            user_id=user_id,
+                            user_role=role,
+                        )
+                        for user_id in _to_add
+                    ],
+                )
+                if response and not response.get("invalidUsers"):
+                    logger.info(
+                        f"Added {len(_to_add)}/{len(emails)} "
+                        f"contributors to the project {self.name} with the {UserRole.get_name(role)} role."
+                    )
+
+        if to_skip:
+            logger.warning(
+                f"Skipped {len(to_skip)}/{len(contributors)} "
+                "contributors that are out of the team scope or already have access to the project."
+            )
+        return to_add, to_skip

@@ -10,6 +10,7 @@ class ProjectRepository(BaseHttpRepository):
     URL_CREATE = "project"
     URL_LIST = "projects"
     URL_RETRIEVE = "project/{project_id}"
+    URL_SHARE = "project/{project_id}/share/bulk"
 
     def get_by_id(self, pk: int) -> ProjectEntity:
         response = self._session.request(
@@ -45,6 +46,15 @@ class ProjectRepository(BaseHttpRepository):
     def delete(self, project_id: int) -> None:
         response = self._session.request(
             self.URL_RETRIEVE.format(project_id=project_id), "delete"
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def share(self, project_id: int, users: List[dict]):
+        response = self._session.request(
+            self.URL_SHARE.format(project_id=project_id),
+            "post",
+            json={"users": users},
         )
         response.raise_for_status()
         return response.json()

@@ -21,6 +21,7 @@ class Session:
     MAX_COROUTINE_COUNT = 8
     ANNOTATION_VERSION = "V1.00"
     URL_USER = "user/ME"
+    URL_TEAM = "team"
 
     def __init__(
         self,
@@ -58,6 +59,14 @@ class Session:
         url = f"{self._api_url}/{self.URL_USER}"
         response = self.request(method="get", url=url)
         return response.json()["id"]
+
+    def get_team(self):
+        response = self.request(
+            f"{self.URL_TEAM}/{self._team_id}",
+            "get",
+        )
+        response.raise_for_status()
+        return response.json()
 
     @property
     def assets_provider_url(self):
