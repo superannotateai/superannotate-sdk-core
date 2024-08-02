@@ -10,6 +10,7 @@ class ProjectRepository(BaseHttpRepository):
     URL_CREATE = "project"
     URL_LIST = "projects"
     URL_RETRIEVE = "project/{project_id}"
+    URL_SHARE = "project/{project_id}/share/bulk"
 
     def get_by_id(self, pk: int) -> ProjectEntity:
         response = self._session.request(
@@ -26,19 +27,34 @@ class ProjectRepository(BaseHttpRepository):
         )
         return self.serialize_entity(data)
 
-    def create(self, entity: ProjectEntity) -> ProjectEntity:
-        response = self._session.request(self.URL_CREATE, "post", data=entity.to_json())
-        response.raise_for_status()
-        return self.serialize_entity(response.json())
-
-    def update(self, entity: ProjectEntity) -> ProjectEntity:
+    def create(self, project: ProjectEntity) -> ProjectEntity:
         response = self._session.request(
-            self.URL_RETRIEVE.format(entity.id),
-            "put",
-            data=entity.to_json(),
+            self.URL_CREATE, "post", json=project.to_json(exclude_none=True)
         )
         response.raise_for_status()
         return self.serialize_entity(response.json())
 
-    def delete(self, pk: int) -> None:
-        return self._session.request(self.URL_RETRIEVE.format(pk), "delete")
+    def update(self, project: ProjectEntity) -> ProjectEntity:
+        response = self._session.request(
+            self.URL_RETRIEVE.format(project_id=project.id),
+            "put",
+            json=project.to_json(exclude_none=True),
+        )
+        response.raise_for_status()
+        return self.serialize_entity(response.json())
+
+    def delete(self, project_id: int) -> None:
+        response = self._session.request(
+            self.URL_RETRIEVE.format(project_id=project_id), "delete"
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def share(self, project_id: int, users: List[dict]):
+        response = self._session.request(
+            self.URL_SHARE.format(project_id=project_id),
+            "post",
+            json={"users": users},
+        )
+        response.raise_for_status()
+        return response.json()

@@ -5,14 +5,14 @@ from superannotate_core.core.entities.item import ImageEntity
 from superannotate_core.core.entities.item import ViedoEntity
 from superannotate_core.core.entities.project import FolderEntity
 from superannotate_core.core.entities.project import ProjectEntity
-from superannotate_core.core.entities.project import Setting
+from superannotate_core.core.entities.project import SettingEntity
 
 
 __all__ = [
     "ProjectEntity",
     "FolderEntity",
     "AnnotationClassEntity",
-    "Setting",
+    "SettingEntity",
     "AttributeGroupSchema",
     "BaseItemEntity",
     "ViedoEntity",

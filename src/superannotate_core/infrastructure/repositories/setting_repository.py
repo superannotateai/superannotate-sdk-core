@@ -1,23 +1,33 @@
 from typing import List
 
 from superannotate_core.core.conditions import Condition
-from superannotate_core.core.entities import Setting
+from superannotate_core.core.entities import SettingEntity
 from superannotate_core.infrastructure.repositories.base import BaseHttpRepository
 
 
 class SettingRepository(BaseHttpRepository):
-    URL_CREATE = "project"
-    URL_LIST = "projects"
-    URL_RETRIEVE = "project/{project_id}"
+    ENTITY = SettingEntity
+    URL_SETTINGS = "project/{}/settings"
 
-    def __init__(self, client, project_id: int):
-        super().__init__(client)
-
-        self._project_id = project_id
-
-    def list(self, condition: Condition) -> List[Setting]:
-        data = self._session.paginate(
-            url=self.URL_LIST,
-            query_params=condition.get_as_params_dict(),
+    def list(self, project_id: int, condition: Condition = None) -> List[SettingEntity]:
+        response = self._session.paginate(
+            self.URL_SETTINGS.format(project_id),
+            query_params=condition.get_as_params_dict() if condition else None,
         )
-        return [Setting.from_json(i) for i in data]
+        return self.serialize_entity(response)
+
+    def set_settings(
+        self, project_id: int, settings: List[SettingEntity]
+    ) -> List[SettingEntity]:
+        response = self._session.request(
+            self.URL_SETTINGS.format(project_id),
+            "put",
+            json={
+                "settings": [
+                    SettingEntity.to_json(setting, exclude_none=True)
+                    for setting in settings
+                ]
+            },
+        )
+        response.raise_for_status()
+        return self.serialize_entity(response.json())
